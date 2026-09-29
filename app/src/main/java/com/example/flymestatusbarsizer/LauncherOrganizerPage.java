@@ -139,9 +139,12 @@ final class LauncherOrganizerPage {
         run(() -> {
             groups = null;
             savePreview();
-            groups = classify(desktop.getJSONArray("apps"), address, modelName, apiKey);
-            LauncherOrganizerProvider.validateGroups(desktop.getJSONArray("apps"), groups);
+            JSONArray generated = classify(desktop.getJSONArray("apps"), address, modelName, apiKey);
+            // Publish the parsed result before validation so a malformed AI grouping remains
+            // visible for correction instead of looking like no result was generated.
+            groups = generated;
             savePreview();
+            LauncherOrganizerProvider.validateGroups(desktop.getJSONArray("apps"), groups);
             return "已生成 " + groups.length() + " 个分类，请预览后应用";
         });
     }
@@ -322,7 +325,6 @@ final class LauncherOrganizerPage {
                     members.put(j, original);
                 }
             }
-            LauncherOrganizerProvider.validateGroups(apps, groups);
             return groups;
         } finally { connection.disconnect(); }
     }
@@ -406,19 +408,46 @@ final class LauncherOrganizerPage {
             for (int i = 0; i < apps.length(); i++) labels.put(apps.getJSONObject(i).getString("id"), apps.getJSONObject(i).getString("name"));
             for (int i = 0; i < groups.length(); i++) {
                 JSONObject group = groups.getJSONObject(i);
+                LinearLayout header = new LinearLayout(activity);
+                header.setGravity(android.view.Gravity.CENTER_VERTICAL);
                 EditText name = new EditText(activity);
                 name.setSingleLine(true);
                 name.setTextColor(activity.primaryColor());
                 name.setText(group.getString("name"));
+                name.setTextSize(16);
                 names.add(name);
-                preview.addView(name, PageViewUtils.matchWrap());
+                header.addView(name, new LinearLayout.LayoutParams(0,
+                        LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+                int groupIndex = i;
+                TextView delete = actionButton("删除分类");
+                activity.setTapClickListener(delete, view -> deleteGroup(groupIndex));
+                header.addView(delete, new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT));
+                preview.addView(header, activity.matchWrapWithTop(10));
                 JSONArray members = group.getJSONArray("apps");
                 for (int j = 0; j < members.length(); j++) {
-                    int groupIndex = i;
                     int memberIndex = j;
-                    TextView app = label(preview, labels.get(members.getString(j)), 15);
-                    app.setPadding(activity.dp(12), activity.dp(8), 0, activity.dp(8));
-                    activity.setTapClickListener(app, view -> moveApp(groupIndex, memberIndex));
+                    LinearLayout row = new LinearLayout(activity);
+                    row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+                    TextView app = new TextView(activity);
+                    app.setText(labels.get(members.getString(j)));
+                    app.setTextSize(15);
+                    app.setTextColor(activity.textColor());
+                    row.addView(app, new LinearLayout.LayoutParams(0,
+                            LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+                    TextView up = actionButton("上移");
+                    TextView down = actionButton("下移");
+                    TextView move = actionButton("移动");
+                    up.setEnabled(memberIndex > 0);
+                    down.setEnabled(memberIndex + 1 < members.length());
+                    activity.setTapClickListener(up, view -> reorder(groupIndex, memberIndex, -1));
+                    activity.setTapClickListener(down, view -> reorder(groupIndex, memberIndex, 1));
+                    activity.setTapClickListener(move, view -> moveApp(groupIndex, memberIndex));
+                    row.addView(up);
+                    row.addView(down);
+                    row.addView(move);
+                    preview.addView(row, activity.matchWrapWithTop(4));
                 }
             }
         } catch (Exception error) { status.setText(error.getMessage()); }
@@ -446,6 +475,56 @@ final class LauncherOrganizerPage {
                 } catch (Exception error) { status.setText(error.getMessage()); }
             }).show();
         } catch (Exception error) { status.setText(error.getMessage()); }
+    }
+
+    private void reorder(int groupIndex, int member, int direction) {
+        try {
+            JSONArray members = groups.getJSONObject(groupIndex).getJSONArray("apps");
+            int target = member + direction;
+            if (target < 0 || target >= members.length()) return;
+            Object current = members.get(member);
+            members.put(member, members.get(target));
+            members.put(target, current);
+            savePreview();
+            renderPreview();
+        } catch (Exception error) { status.setText(error.getMessage()); }
+    }
+
+    private void deleteGroup(int source) {
+        if (groups.length() <= 1) {
+            status.setText("至少保留一个分类");
+            return;
+        }
+        try {
+            String[] choices = new String[groups.length() - 1];
+            int[] indexes = new int[choices.length];
+            int cursor = 0;
+            for (int i = 0; i < groups.length(); i++) {
+                if (i == source) continue;
+                choices[cursor] = groups.getJSONObject(i).getString("name");
+                indexes[cursor++] = i;
+            }
+            new AlertDialog.Builder(activity).setTitle("删除分类并移动应用")
+                    .setMessage("该分类中的应用将移动到你选择的分类，不会删除应用。")
+                    .setItems(choices, (dialog, which) -> {
+                        try {
+                            JSONArray removed = groups.getJSONObject(source).getJSONArray("apps");
+                            JSONArray target = groups.getJSONObject(indexes[which]).getJSONArray("apps");
+                            for (int i = 0; i < removed.length(); i++) target.put(removed.getString(i));
+                            groups.remove(source);
+                            savePreview();
+                            renderPreview();
+                        } catch (Exception error) { status.setText(error.getMessage()); }
+                    }).show();
+        } catch (Exception error) { status.setText(error.getMessage()); }
+    }
+
+    private TextView actionButton(String title) {
+        TextView button = activity.filledButton(title, activity.surfaceSoftColor(), activity.primaryColor());
+        button.setTextSize(12);
+        button.setMinHeight(activity.dp(32));
+        button.setPadding(activity.dp(8), 0, activity.dp(8), 0);
+        return button;
     }
 
     private void savePreview() throws Exception {
