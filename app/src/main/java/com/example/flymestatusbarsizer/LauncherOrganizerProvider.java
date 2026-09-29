@@ -29,7 +29,7 @@ public final class LauncherOrganizerProvider extends ContentProvider {
         return context.getSharedPreferences("launcher_organizer_mailbox", Context.MODE_PRIVATE);
     }
 
-    static void validateGroups(JSONArray apps, JSONArray groups) throws Exception {
+    static List<String> validateGroups(JSONArray apps, JSONArray groups) throws Exception {
         List<String> expected = new ArrayList<>();
         List<List<String>> members = new ArrayList<>();
         Set<String> names = new HashSet<>();
@@ -44,7 +44,7 @@ public final class LauncherOrganizerProvider extends ContentProvider {
             for (int j = 0; j < ids.length(); j++) list.add(ids.getString(j));
             members.add(list);
         }
-        LauncherOrganizerLayout.validateMembership(expected, members);
+        return LauncherOrganizerLayout.validateMembership(expected, members);
     }
 
     @Override public boolean onCreate() { return true; }
@@ -92,6 +92,14 @@ public final class LauncherOrganizerProvider extends ContentProvider {
                     prefs.edit().putString("state", "done")
                             .putString("data", extras.getString("data", ""))
                             .putString("error", extras.getString("error", "")).commit();
+                }
+            } else if ("status".equals(method)) {
+                if (!owner) throw new SecurityException("Only the module may query command status");
+                if (arg != null && arg.equals(prefs.getString("id", ""))) {
+                    result.putString("id", arg);
+                    result.putString("state", prefs.getString("state", ""));
+                    result.putString("data", prefs.getString("data", ""));
+                    result.putString("error", prefs.getString("error", ""));
                 }
             } else if ("cancel".equals(method)) {
                 if (!owner) throw new SecurityException("Only the module may cancel commands");

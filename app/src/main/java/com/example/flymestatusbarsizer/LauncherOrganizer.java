@@ -259,7 +259,11 @@ final class LauncherOrganizer {
     private static void apply(Context context, Object profile, Object controller, SQLiteDatabase db,
             JSONObject state, JSONArray groups) throws Exception {
         JSONArray apps = state.getJSONArray("apps");
-        LauncherOrganizerProvider.validateGroups(apps, groups);
+        List<String> unclassified = LauncherOrganizerProvider.validateGroups(apps, groups);
+        // Reuse single-app placement so each unclassified app gets its own desktop cell.
+        for (String id : unclassified) {
+            groups.put(new JSONObject().put("apps", new JSONArray().put(id)));
+        }
         Map<String, JSONObject> appRows = new LinkedHashMap<>();
         Set<Integer> moving = new HashSet<>();
         for (int i = 0; i < apps.length(); i++) {

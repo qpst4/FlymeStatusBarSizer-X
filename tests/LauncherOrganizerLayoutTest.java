@@ -40,8 +40,14 @@ public final class LauncherOrganizerLayoutTest {
                 check(occupied.add(cell[0] + ":" + cell[1] + ":" + cell[2]), "no widget or app overlap");
             }
         }
-        LauncherOrganizerLayout.validateMembership(List.of("a", "b", "clone"), List.of(List.of("clone", "a"), List.of("b")));
-        rejects(() -> LauncherOrganizerLayout.validateMembership(List.of("a", "b"), List.of(List.of("a"))));
+        check(LauncherOrganizerLayout.validateMembership(List.of("a", "b", "clone"),
+                List.of(List.of("clone", "a"), List.of("b"))).isEmpty(), "all apps classified");
+        check(LauncherOrganizerLayout.validateMembership(List.of("a", "b", "clone"),
+                List.of(List.of("b"))).equals(List.of("a", "clone")), "unclassified apps keep desktop order");
+        check(LauncherOrganizerLayout.validateMembership(List.of("a", "b"), List.of())
+                .equals(List.of("a", "b")), "all apps may remain unclassified");
+        rejects(() -> LauncherOrganizerLayout.validateMembership(List.of(), List.of()));
+        rejects(() -> LauncherOrganizerLayout.validateMembership(List.of("a", "a"), List.of()));
         rejects(() -> LauncherOrganizerLayout.validateMembership(List.of("a", "b"), List.of(List.of("a", "b", "a"))));
         rejects(() -> LauncherOrganizerLayout.validateMembership(List.of("a"), List.of(List.of("unknown"))));
         rejects(() -> LauncherOrganizerLayout.validateMembership(List.of("a"), List.of(List.of(), List.of("a"))));

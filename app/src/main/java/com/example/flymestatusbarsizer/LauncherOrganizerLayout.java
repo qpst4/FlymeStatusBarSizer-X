@@ -1,7 +1,7 @@
 package com.example.flymestatusbarsizer;
 
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeMap;
@@ -53,10 +53,10 @@ final class LauncherOrganizerLayout {
         return result;
     }
 
-    static void validateMembership(List<String> expected, List<List<String>> groups) {
-        Set<String> missing = new HashSet<>(expected);
-        if (missing.size() != expected.size() || missing.isEmpty() || groups.isEmpty()) {
-            throw new IllegalArgumentException("应用列表或分类为空、重复");
+    static List<String> validateMembership(List<String> expected, List<List<String>> groups) {
+        Set<String> missing = new LinkedHashSet<>(expected);
+        if (missing.size() != expected.size() || missing.isEmpty()) {
+            throw new IllegalArgumentException("应用列表为空或重复");
         }
         for (List<String> group : groups) {
             if (group.isEmpty()) throw new IllegalArgumentException("分类中存在空文件夹");
@@ -64,6 +64,6 @@ final class LauncherOrganizerLayout {
                 if (!missing.remove(id)) throw new IllegalArgumentException("分类包含重复或未知应用：" + id);
             }
         }
-        if (!missing.isEmpty()) throw new IllegalArgumentException("分类遗漏了 " + missing.size() + " 个应用，请重新生成");
+        return new ArrayList<>(missing);
     }
 }
