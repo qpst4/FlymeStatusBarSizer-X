@@ -170,11 +170,11 @@ final class LauncherOrganizer {
                 try { call(activity, "setWorkspaceLoadingMz", boolean.class, false); }
                 catch (Exception error) { FlymeStatusBarSizer.logLauncherWarning("Desktop organizer unlock failed", error); }
             });
+            BUSY.set(false);
             if (id != null) {
                 try { activity.getContentResolver().call(LauncherOrganizerProvider.URI, "finish", id, reply); }
                 catch (Throwable error) { FlymeStatusBarSizer.logLauncherWarning("Desktop organizer reply failed", error); }
             }
-            BUSY.set(false);
         }
     }
 
@@ -253,6 +253,7 @@ final class LauncherOrganizer {
                     .put("package", app.getString("package")));
         }
         return new JSONObject().put("hash", state.getString("hash")).put("apps", result)
+                .put("columns", state.getInt("columns")).put("rows", state.getInt("rows"))
                 .put("canUndo", backup(context, state) != null);
     }
 
@@ -293,7 +294,13 @@ final class LauncherOrganizer {
                 reserved.add(new int[]{row.getInt("screen"), row.getInt("cellX"), row.getInt("cellY"), row.getInt("spanX"), row.getInt("spanY")});
             }
         }
-        List<int[]> positions = LauncherOrganizerLayout.place(state.getInt("columns"), state.getInt("rows"), screens, reserved, groups.length());
+        List<int[]> sizes = new ArrayList<>();
+        for (int i = 0; i < groups.length(); i++) {
+            JSONObject group = groups.getJSONObject(i);
+            sizes.add(LauncherOrganizerLayout.folderSpan(group.getJSONArray("apps").length() > 1
+                    ? group.optInt("folderType", 0) : 0));
+        }
+        List<int[]> positions = LauncherOrganizerLayout.place(state.getInt("columns"), state.getInt("rows"), screens, reserved, sizes);
         JSONArray writes = new JSONArray();
         JSONArray created = new JSONArray();
         ClassLoader loader = context.getClassLoader();
@@ -310,6 +317,7 @@ final class LauncherOrganizer {
                         .put("title", group.getString("name")).put("profileId", context.getSystemService(UserManager.class).getSerialNumberForUser(Process.myUserHandle()))
                         .put("options", 8).put("category", -2).put("cloneId", 0);
                 position(folder, -100, pos[0], pos[1], pos[2], 0);
+                folder.put("spanX", sizes.get(i)[0]).put("spanY", sizes.get(i)[1]);
                 writes.put(folder);
                 created.put(folderId);
                 container = folderId;

@@ -8,10 +8,34 @@ import java.util.TreeMap;
 
 /** Grid calculation without Android state; each rectangle is screen, x, y, width, height. */
 final class LauncherOrganizerLayout {
+    static final String[] FOLDER_TYPES = {
+            "普通文件夹", "1×3 竖向大文件夹", "3×1 横向大文件夹", "3×3 大文件夹",
+            "4×3 大文件夹", "6×3 大文件夹", "7×3 大文件夹"
+    };
+
+    // Flyme's preview grid differs from its occupied desktop cells (spanToConfig).
+    static int[] folderSpan(int type) {
+        return switch (type) {
+            case 0 -> new int[]{1, 1};
+            case 1 -> new int[]{1, 2};
+            case 2 -> new int[]{2, 1};
+            case 3 -> new int[]{2, 2};
+            case 4 -> new int[]{3, 2};
+            case 5 -> new int[]{4, 2};
+            case 6 -> new int[]{5, 2};
+            default -> throw new IllegalArgumentException("不支持的文件夹类型");
+        };
+    }
+
     static List<int[]> place(int columns, int rows, List<Integer> screens,
-            List<int[]> reserved, int count) {
-        if (columns < 1 || columns > 20 || rows < 1 || rows > 30 || count < 0 || count > 2000) {
+            List<int[]> reserved, List<int[]> sizes) {
+        if (columns < 1 || columns > 20 || rows < 1 || rows > 30 || sizes.size() > 2000) {
             throw new IllegalArgumentException("桌面网格或应用数量不受支持");
+        }
+        for (int[] size : sizes) {
+            if (size[0] < 1 || size[1] < 1 || size[0] > columns || size[1] > rows) {
+                throw new IllegalArgumentException("所选文件夹超出当前桌面网格，请选择较小的类型");
+            }
         }
         TreeMap<Integer, boolean[][]> pages = new TreeMap<>();
         for (int screen : screens) {
@@ -29,17 +53,25 @@ final class LauncherOrganizerLayout {
             }
         }
         List<int[]> result = new ArrayList<>();
-        while (result.size() < count) {
+        while (result.size() < sizes.size()) {
+            int[] size = sizes.get(result.size());
             boolean placed = false;
             for (int screen : pages.keySet()) {
                 boolean[][] cells = pages.get(screen);
-                for (int y = 0; y < rows && !placed; y++) {
-                    for (int x = 0; x < columns && !placed; x++) {
-                        if (!cells[x][y]) {
-                            cells[x][y] = true;
-                            result.add(new int[]{screen, x, y});
-                            placed = true;
+                for (int y = 0; y <= rows - size[1] && !placed; y++) {
+                    for (int x = 0; x <= columns - size[0] && !placed; x++) {
+                        boolean free = true;
+                        for (int dx = 0; dx < size[0] && free; dx++) {
+                            for (int dy = 0; dy < size[1]; dy++) {
+                                if (cells[x + dx][y + dy]) { free = false; break; }
+                            }
                         }
+                        if (!free) continue;
+                        for (int dx = 0; dx < size[0]; dx++) {
+                            for (int dy = 0; dy < size[1]; dy++) cells[x + dx][y + dy] = true;
+                        }
+                        result.add(new int[]{screen, x, y});
+                        placed = true;
                     }
                 }
                 if (placed) break;

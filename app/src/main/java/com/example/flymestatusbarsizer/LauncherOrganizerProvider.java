@@ -36,6 +36,7 @@ public final class LauncherOrganizerProvider extends ContentProvider {
         for (int i = 0; i < apps.length(); i++) expected.add(apps.getJSONObject(i).getString("id"));
         for (int i = 0; i < groups.length(); i++) {
             JSONObject group = groups.getJSONObject(i);
+            LauncherOrganizerLayout.folderSpan(group.optInt("folderType", 0));
             String name = group.getString("name").trim();
             if (name.isEmpty() || name.length() > 30 || !names.add(name)) throw new IllegalArgumentException("分类名称为空、过长或重复");
             group.put("name", name);
