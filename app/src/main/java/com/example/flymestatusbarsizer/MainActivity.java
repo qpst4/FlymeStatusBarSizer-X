@@ -154,6 +154,7 @@ public class MainActivity extends Activity {
         POSITION_TUNING("布局微调", "单独调整时钟、电池、信号、Wi-Fi 与输入法控制栏的细节位置。", null, true),
         CAMERA_CIRCLE_POSITION("环形摄像头位置微调", "调整摄像头环形电池相对挖孔中心的位置。", null, true),
         LAUNCHER_STACK_PARAMS("堆叠后台参数", "调整 IOS 式堆叠后台的布局、动画、手势、视觉和性能参数。", null, true),
+        LAUNCHER_ORGANIZER("AI 整理桌面", "生成分类后预览，确认后应用到 Flyme 桌面。", null, true),
         TELEPHONY_DEBUG("Telephony 调试", "伪造 Telephony 读数，验证双卡、网络制式与信号等级对图标布局的影响。", null, true);
 
         final String title;
@@ -273,6 +274,8 @@ public class MainActivity extends Activity {
                         activity.createCameraCirclePositionCard(), PageViewUtils.matchWrap()));
         registerPage(Page.LAUNCHER_STACK_PARAMS, R.layout.page_launcher_stack_params,
                 LauncherStackParamsPageController::bind);
+        registerPage(Page.LAUNCHER_ORGANIZER, R.layout.page_system_appearance,
+                LauncherOrganizerPage::bind);
         registerPage(Page.TELEPHONY_DEBUG, R.layout.page_telephony_debug, TelephonyDebugPageController::bind);
     }
 
@@ -452,6 +455,10 @@ public class MainActivity extends Activity {
 
     void showLauncherStackParamsPage() {
         openPage(Page.LAUNCHER_STACK_PARAMS);
+    }
+
+    void showLauncherOrganizerPage() {
+        openPage(Page.LAUNCHER_ORGANIZER);
     }
 
     void showClockDetailActionGridEditor() {

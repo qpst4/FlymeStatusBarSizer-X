@@ -264,6 +264,7 @@ public class FlymeStatusBarSizer extends XposedModule {
     }
 
     private void hookFlymeLauncher(ClassLoader loader) {
+        LauncherOrganizer.install(this, loader);
         LauncherAppearanceHooks.install(this, loader);
         LauncherRecentsHooks.install(this, loader);
     }
