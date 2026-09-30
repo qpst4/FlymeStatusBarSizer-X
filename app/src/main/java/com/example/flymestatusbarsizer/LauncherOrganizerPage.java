@@ -9,6 +9,7 @@ import android.os.SystemClock;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
+import android.view.MotionEvent;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -47,6 +48,7 @@ final class LauncherOrganizerPage {
     private final LinearLayout preview;
     private final TextView status;
     private final TextView configStatus;
+    private final TextView promptStatus;
     private final TextView liveOutput;
     private final ProgressBar progress;
     private final EditText endpoint;
@@ -59,6 +61,7 @@ final class LauncherOrganizerPage {
     private JSONObject desktop;
     private JSONArray groups;
     private boolean busy;
+    private boolean promptsChanged;
     private long startedAt;
     private volatile String phase = "";
     private volatile String liveText = "";
@@ -84,19 +87,42 @@ final class LauncherOrganizerPage {
         model = input(settings, "模型名称", "填写服务商提供的模型名称", prefs.getString("model", ""), false);
         key = input(settings, "API Key", "仅保存在本机模块内", prefs.getString("key", ""), true);
         LinearLayout classification = column();
-        corePrompt = input(classification, "核心提示词", "填写分类规则和返回格式",
-                prefs.getString("core_prompt", DEFAULT_CORE_PROMPT), false);
-        corePrompt.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
-        corePrompt.setSingleLine(false);
-        corePrompt.setMinLines(5);
-        corePrompt.setGravity(android.view.Gravity.TOP | android.view.Gravity.START);
-        button(classification, "恢复默认提示词", () -> corePrompt.setText(DEFAULT_CORE_PROMPT));
-        customPrompt = input(classification, "自定义分类要求（选填）", "例如：分成工作、生活、娱乐；微信和企业微信放入工作。",
-                prefs.getString("prompt", ""), false);
-        customPrompt.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
-        customPrompt.setSingleLine(false);
-        customPrompt.setMinLines(3);
-        customPrompt.setGravity(android.view.Gravity.TOP | android.view.Gravity.START);
+        TextView promptToggle = actionButton("展开提示词 ▾");
+        classification.addView(promptToggle, PageViewUtils.matchWrap());
+        promptStatus = label(classification, "修改后保存，用于下次生成分类。", 13);
+        promptStatus.setTextColor(activity.subtextColor());
+        LinearLayout promptEditor = column();
+        customPrompt = promptInput(promptEditor, "分类要求（选填）", "例如：分成工作、生活、娱乐；微信和企业微信放入工作。",
+                prefs.getString("prompt", ""), 3, 5);
+        corePrompt = promptInput(promptEditor, "核心提示词", "分类规则和返回格式",
+                prefs.getString("core_prompt", DEFAULT_CORE_PROMPT), 6, 10);
+        button(promptEditor, "保存提示词", () -> {
+            if (corePrompt.getText().toString().trim().isEmpty()) {
+                promptStatus.setText("核心提示词不能为空。");
+                return;
+            }
+            boolean saved = prefs.edit().putString("core_prompt", corePrompt.getText().toString())
+                    .putString("prompt", customPrompt.getText().toString()).commit();
+            if (saved) promptsChanged = false;
+            promptStatus.setText(saved ? "提示词已保存。" : "保存失败，请重试。");
+        });
+        TextView resetPrompt = actionButton("恢复默认核心提示词");
+        activity.setTapClickListener(resetPrompt, view -> corePrompt.setText(DEFAULT_CORE_PROMPT));
+        promptEditor.addView(resetPrompt, activity.matchWrapWithTop(8));
+        controls.add(resetPrompt);
+        promptEditor.setVisibility(View.GONE);
+        classification.addView(promptEditor, PageViewUtils.matchWrap());
+        activity.setTapClickListener(promptToggle, view -> {
+            boolean expand = promptEditor.getVisibility() != View.VISIBLE;
+            if (!expand) {
+                corePrompt.clearFocus();
+                customPrompt.clearFocus();
+                activity.getSystemService(android.view.inputmethod.InputMethodManager.class)
+                        .hideSoftInputFromWindow(promptEditor.getWindowToken(), 0);
+            }
+            promptEditor.setVisibility(expand ? View.VISIBLE : View.GONE);
+            promptToggle.setText(expand ? "收起提示词 ▴" : "展开提示词 ▾");
+        });
         configStatus = label(settings, "接口信息自动保存在本机，下次打开自动填入。", 13);
         button(settings, "保存接口", () -> {
             boolean saved = configEditor().commit();
@@ -110,10 +136,19 @@ final class LauncherOrganizerPage {
         endpoint.addTextChangedListener(save);
         model.addTextChangedListener(save);
         key.addTextChangedListener(save);
-        corePrompt.addTextChangedListener(save);
-        customPrompt.addTextChangedListener(save);
+        TextWatcher promptChanges = new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { }
+            @Override public void afterTextChanged(Editable text) {
+                promptsChanged = !corePrompt.getText().toString().equals(prefs.getString("core_prompt", DEFAULT_CORE_PROMPT))
+                        || !customPrompt.getText().toString().equals(prefs.getString("prompt", ""));
+                promptStatus.setText(promptsChanged ? "有未保存的修改，请点击保存提示词。" : "修改后保存，用于下次生成分类。");
+            }
+        };
+        corePrompt.addTextChangedListener(promptChanges);
+        customPrompt.addTextChangedListener(promptChanges);
         root.addView(activity.buildSectionCard("AI 接口", "使用兼容 Chat Completions 的接口。生成分类时会发送应用名称和包名。", settings), PageViewUtils.matchWrap());
-        root.addView(activity.buildSectionCard("提示词", "核心提示词和分类要求均可编辑，自动保存在本机。恢复默认只重置核心提示词。", classification), PageViewUtils.matchWrap());
+        root.addView(activity.buildSectionCard("提示词", "展开后编辑并保存。收起保留当前编辑内容，恢复默认只重置核心提示词。", classification), PageViewUtils.matchWrap());
         LinearLayout actions = column();
         button(actions, "读取桌面", () -> run(() -> {
             desktop = new JSONObject(command("read", null));
@@ -123,17 +158,6 @@ final class LauncherOrganizerPage {
         }));
         button(actions, "生成 AI 分类", this::generate);
         button(actions, "应用整理", this::confirmApply);
-        button(actions, "撤销上次整理", () -> new AlertDialog.Builder(activity)
-                .setTitle("撤销上次整理")
-                .setMessage("恢复整理前的应用和文件夹位置。")
-                .setNegativeButton("取消", null)
-                .setPositiveButton("恢复", (dialog, which) -> run(() -> {
-                    String result = command("undo", null);
-                    desktop = null;
-                    groups = null;
-                    savePreview();
-                    return result;
-                })).show());
         status = label(actions, "先读取桌面，再生成分类。", 14);
         progress = new ProgressBar(activity, null, android.R.attr.progressBarStyleHorizontal);
         progress.setIndeterminate(true);
@@ -143,7 +167,7 @@ final class LauncherOrganizerPage {
         liveOutput.setVisibility(View.GONE);
         root.addView(activity.buildSectionCard("操作", "保留底栏、小组件和特殊快捷方式。单应用分类和未分类应用直接放在桌面。", actions), PageViewUtils.matchWrap());
         preview = column();
-        root.addView(activity.buildSectionCard("分类预览", "可重命名分类、选择文件夹类型，点击应用可调整归属。", preview), PageViewUtils.matchWrap());
+        root.addView(activity.buildSectionCard("分类预览", "文件夹默认按应用数量自动选尺寸，也可手动选择。点击应用可调整归属。", preview), PageViewUtils.matchWrap());
         try {
             String saved = prefs.getString("preview", "");
             if (!saved.isEmpty()) {
@@ -155,9 +179,9 @@ final class LauncherOrganizerPage {
                     LauncherOrganizerProvider.validateGroups(desktop.getJSONArray("apps"), groups);
                     savePreview();
                 }
-                renderPreview();
             }
         } catch (Exception ignored) { desktop = null; groups = null; }
+        renderPreview();
     }
 
     private void generate() {
@@ -167,6 +191,7 @@ final class LauncherOrganizerPage {
         String systemPrompt = corePrompt.getText().toString().trim();
         String instructions = customPrompt.getText().toString().trim();
         if (desktop == null) { status.setText("请先读取桌面"); return; }
+        if (promptsChanged) { status.setText("提示词有修改，请展开并保存后再生成分类"); return; }
         if (address.isEmpty() || modelName.isEmpty()) { status.setText("请填写接口地址和模型名称"); return; }
         if (systemPrompt.isEmpty()) { status.setText("请填写核心提示词，或点击恢复默认提示词"); return; }
         configEditor().apply();
@@ -194,7 +219,7 @@ final class LauncherOrganizerPage {
             savePreview();
             String plan = new JSONObject().put("hash", desktop.getString("hash")).put("groups", groups).toString();
             new AlertDialog.Builder(activity).setTitle("应用桌面整理")
-                    .setMessage("按预览重新排列 " + desktop.getJSONArray("apps").length() + " 个应用，并保存原布局用于撤销。")
+                    .setMessage("按预览中的分类和文件夹尺寸重新排列 " + desktop.getJSONArray("apps").length() + " 个应用。")
                     .setNegativeButton("取消", null)
                     .setPositiveButton("应用", (dialog, which) -> run(() -> {
                         JSONObject current = new JSONObject(command("read", null));
@@ -225,7 +250,7 @@ final class LauncherOrganizerPage {
             Bundle state = activity.getContentResolver().call(LauncherOrganizerProvider.URI, "status", id, null);
             String current = state == null ? "" : state.getString("state", "");
             phase = "running".equals(current)
-                    ? switch (action) { case "read" -> "正在读取应用和布局"; case "apply" -> "正在保存整理后的布局"; default -> "正在恢复原布局"; }
+                    ? ("read".equals(action) ? "正在读取应用和布局" : "正在保存整理后的布局")
                     : "等待桌面响应";
             if (id.equals(state == null ? "" : state.getString("id", "")) && "done".equals(current)) {
                 String error = state.getString("error", "");
@@ -360,6 +385,7 @@ final class LauncherOrganizerPage {
             }
             JSONArray groups = new JSONObject(text).getJSONArray("groups");
             for (int i = 0; i < groups.length(); i++) {
+                groups.getJSONObject(i).remove("folderType");
                 JSONArray members = groups.getJSONObject(i).getJSONArray("apps");
                 for (int j = 0; j < members.length(); j++) {
                     members.put(j, ids.getOrDefault(members.getString(j), ""));
@@ -435,22 +461,26 @@ final class LauncherOrganizerPage {
     private SharedPreferences.Editor configEditor() {
         return prefs.edit().putString("endpoint", endpoint.getText().toString().trim())
                 .putString("model", model.getText().toString().trim())
-                .putString("key", key.getText().toString().trim())
-                .putString("core_prompt", corePrompt.getText().toString())
-                .putString("prompt", customPrompt.getText().toString().trim());
+                .putString("key", key.getText().toString().trim());
     }
 
     private void renderPreview() {
         preview.removeAllViews();
         names.clear();
-        if (desktop == null || groups == null) return;
+        if (desktop == null || groups == null) {
+            label(preview, desktop == null ? "读取桌面并生成分类后，在这里预览。" : "已读取桌面，点击“生成 AI 分类”继续。", 14);
+            return;
+        }
         try {
             Map<String, String> labels = new LinkedHashMap<>();
             Set<String> assigned = new HashSet<>();
             JSONArray apps = desktop.getJSONArray("apps");
             for (int i = 0; i < apps.length(); i++) labels.put(apps.getJSONObject(i).getString("id"), apps.getJSONObject(i).getString("name"));
+            label(preview, groups.length() + " 个分类 · " + apps.length() + " 个应用", 14);
             for (int i = 0; i < groups.length(); i++) {
                 JSONObject group = groups.getJSONObject(i);
+                LinearLayout groupView = activity.card(activity.surfaceSoftColor(), 12);
+                preview.addView(groupView, activity.matchWrapWithTop(12));
                 LinearLayout header = new LinearLayout(activity);
                 header.setGravity(android.view.Gravity.CENTER_VERTICAL);
                 EditText name = new EditText(activity);
@@ -467,13 +497,17 @@ final class LauncherOrganizerPage {
                 header.addView(delete, new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.WRAP_CONTENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT));
-                preview.addView(header, activity.matchWrapWithTop(10));
+                groupView.addView(header, PageViewUtils.matchWrap());
                 JSONArray members = group.getJSONArray("apps");
+                int requested = group.optInt("folderType", -1);
+                int type = LauncherOrganizerLayout.folderType(requested, members.length(),
+                        desktop.getInt("columns"), desktop.getInt("rows"));
                 TextView folderType = actionButton(members.length() == 1 ? "单应用直接放到桌面"
-                        : "文件夹：" + LauncherOrganizerLayout.FOLDER_TYPES[group.optInt("folderType", 0)]);
+                        : members.length() + " 个应用 · " + (requested == -1 ? "自动：" : "手动：")
+                                + LauncherOrganizerLayout.FOLDER_TYPES[type] + " ▾");
                 folderType.setEnabled(members.length() > 1);
                 activity.setTapClickListener(folderType, view -> selectFolderType(groupIndex));
-                preview.addView(folderType, activity.matchWrapWithTop(4));
+                groupView.addView(folderType, activity.matchWrapWithTop(4));
                 for (int j = 0; j < members.length(); j++) {
                     assigned.add(members.getString(j));
                     int memberIndex = j;
@@ -485,19 +519,21 @@ final class LauncherOrganizerPage {
                     app.setTextColor(activity.textColor());
                     row.addView(app, new LinearLayout.LayoutParams(0,
                             LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-                    TextView up = actionButton("上移");
-                    TextView down = actionButton("下移");
-                    TextView move = actionButton("移动");
-                    up.setEnabled(memberIndex > 0);
-                    down.setEnabled(memberIndex + 1 < members.length());
-                    activity.setTapClickListener(up, view -> reorder(groupIndex, memberIndex, -1));
-                    activity.setTapClickListener(down, view -> reorder(groupIndex, memberIndex, 1));
-                    activity.setTapClickListener(move, view -> moveApp(groupIndex, memberIndex));
+                    TextView adjust = actionButton("调整");
+                    activity.setTapClickListener(adjust, view -> {
+                        List<String> choices = new ArrayList<>();
+                        choices.add("移动到分类");
+                        if (memberIndex > 0) choices.add("上移");
+                        if (memberIndex + 1 < members.length()) choices.add("下移");
+                        new AlertDialog.Builder(activity).setTitle(app.getText())
+                                .setItems(choices.toArray(new String[0]), (dialog, which) -> {
+                                    if (which == 0) moveApp(groupIndex, memberIndex);
+                                    else reorder(groupIndex, memberIndex, "上移".equals(choices.get(which)) ? -1 : 1);
+                                }).show();
+                    });
                     activity.setTapClickListener(app, view -> moveApp(groupIndex, memberIndex));
-                    row.addView(up);
-                    row.addView(down);
-                    row.addView(move);
-                    preview.addView(row, activity.matchWrapWithTop(4));
+                    row.addView(adjust);
+                    groupView.addView(row, activity.matchWrapWithTop(4));
                 }
             }
             int unclassifiedCount = 0;
@@ -550,6 +586,10 @@ final class LauncherOrganizerPage {
             JSONObject group = groups.getJSONObject(groupIndex);
             List<String> choices = new ArrayList<>();
             List<Integer> types = new ArrayList<>();
+            int autoType = LauncherOrganizerLayout.folderType(-1, group.getJSONArray("apps").length(),
+                    desktop.getInt("columns"), desktop.getInt("rows"));
+            choices.add("自动（" + LauncherOrganizerLayout.FOLDER_TYPES[autoType] + "）");
+            types.add(-1);
             for (int type = 0; type < LauncherOrganizerLayout.FOLDER_TYPES.length; type++) {
                 int[] span = LauncherOrganizerLayout.folderSpan(type);
                 if (span[0] > desktop.optInt("columns", Integer.MAX_VALUE)
@@ -558,7 +598,7 @@ final class LauncherOrganizerPage {
                 types.add(type);
             }
             new AlertDialog.Builder(activity).setTitle("选择文件夹类型")
-                    .setSingleChoiceItems(choices.toArray(new String[0]), types.indexOf(group.optInt("folderType", 0)), (dialog, which) -> {
+                    .setSingleChoiceItems(choices.toArray(new String[0]), types.indexOf(group.optInt("folderType", -1)), (dialog, which) -> {
                         try {
                             group.put("folderType", types.get(which));
                             savePreview();
@@ -678,6 +718,42 @@ final class LauncherOrganizerPage {
         edit.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
         root.addView(edit, PageViewUtils.matchWrap());
         controls.add(edit);
+        return edit;
+    }
+
+    private EditText promptInput(LinearLayout root, String title, String hint, String value, int minLines, int maxLines) {
+        EditText edit = input(root, title, hint, value, false);
+        edit.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        edit.setSingleLine(false);
+        edit.setMinLines(minLines);
+        edit.setMaxLines(maxLines);
+        edit.setTextSize(14);
+        edit.setLineSpacing(activity.dp(3), 1f);
+        edit.setGravity(android.view.Gravity.TOP | android.view.Gravity.START);
+        edit.setPadding(activity.dp(12), activity.dp(10), activity.dp(12), activity.dp(10));
+        edit.setBackground(activity.roundRect(activity.surfaceSoftColor(), 10));
+        edit.setVerticalScrollBarEnabled(true);
+        float[] lastY = {0f};
+        edit.setOnTouchListener((view, event) -> {
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN -> {
+                    lastY[0] = event.getY();
+                    view.getParent().requestDisallowInterceptTouchEvent(
+                            view.canScrollVertically(-1) || view.canScrollVertically(1));
+                }
+                case MotionEvent.ACTION_MOVE -> {
+                    float delta = lastY[0] - event.getY();
+                    if (delta != 0f) {
+                        view.getParent().requestDisallowInterceptTouchEvent(
+                                view.canScrollVertically(delta > 0f ? 1 : -1));
+                    }
+                    lastY[0] = event.getY();
+                }
+                case MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
+                        view.getParent().requestDisallowInterceptTouchEvent(false);
+            }
+            return false; // Keep native cursor placement, selection and text scrolling.
+        });
         return edit;
     }
 

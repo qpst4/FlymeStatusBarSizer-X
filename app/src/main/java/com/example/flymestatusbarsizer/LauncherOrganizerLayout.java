@@ -27,6 +27,20 @@ final class LauncherOrganizerLayout {
         };
     }
 
+    // -1 means automatic; explicit choices keep their size as membership changes.
+    static int folderType(int requested, int appCount, int columns, int rows) {
+        if (requested != -1) folderSpan(requested);
+        if (appCount <= 1) return 0;
+        if (requested != -1) return requested;
+        int type = appCount <= 3 ? 2 : appCount <= 9 ? 3 : appCount <= 12 ? 4 : appCount <= 18 ? 5 : 6;
+        // Use the smallest large preview that fits the apps, capped by the desktop grid.
+        for (; type > 0; type--) {
+            int[] span = folderSpan(type);
+            if (span[0] <= columns && span[1] <= rows) return type;
+        }
+        return 0;
+    }
+
     static List<int[]> place(int columns, int rows, List<Integer> screens,
             List<int[]> reserved, List<int[]> sizes) {
         if (columns < 1 || columns > 20 || rows < 1 || rows > 30 || sizes.size() > 2000) {

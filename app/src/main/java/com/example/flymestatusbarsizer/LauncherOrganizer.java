@@ -14,14 +14,11 @@ import android.os.Looper;
 import android.os.Process;
 import android.os.UserHandle;
 import android.os.UserManager;
-import android.util.AtomicFile;
 import android.util.Base64;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.io.File;
-import java.io.FileOutputStream;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
@@ -124,7 +121,7 @@ final class LauncherOrganizer {
             JSONObject state = snapshot(activity, profile, model, privacy, db);
             String action = request.getString("action");
             if ("read".equals(action)) {
-                reply.putString("data", exported(state, activity).toString());
+                reply.putString("data", exported(state).toString());
             } else {
                 if ((boolean) call(Class.forName(MZ + "utils.WorkspaceLayoutLockUtils", false, loader),
                         "isLauncherLayoutLocked", Context.class, activity)) {
@@ -149,8 +146,6 @@ final class LauncherOrganizer {
                         throw new IllegalStateException("桌面或应用列表已变化，请重新读取并生成分类");
                     }
                     apply(activity, profile, controller, db, state, plan.getJSONArray("groups"));
-                } else if ("undo".equals(action)) {
-                    undo(activity, db, state);
                 } else {
                     throw new IllegalArgumentException("未知桌面操作");
                 }
@@ -158,7 +153,7 @@ final class LauncherOrganizer {
                 // Invalidate old model state before allowing subsequent model tasks to execute.
                 call(model, "forceReload");
                 reloaded = true;
-                reply.putString("data", "apply".equals(action) ? "整理已保存，桌面正在刷新" : "原布局已恢复，桌面正在刷新");
+                reply.putString("data", "整理已保存，桌面正在刷新");
             }
         } catch (Throwable error) {
             while (error.getCause() != null) error = error.getCause();
@@ -244,7 +239,7 @@ final class LauncherOrganizer {
         return new JSONObject().put("id", id).put("name", name).put("package", packageName(row)).put("row", row);
     }
 
-    private static JSONObject exported(JSONObject state, Context context) throws Exception {
+    private static JSONObject exported(JSONObject state) throws Exception {
         JSONArray apps = state.getJSONArray("apps");
         JSONArray result = new JSONArray();
         for (int i = 0; i < apps.length(); i++) {
@@ -253,8 +248,7 @@ final class LauncherOrganizer {
                     .put("package", app.getString("package")));
         }
         return new JSONObject().put("hash", state.getString("hash")).put("apps", result)
-                .put("columns", state.getInt("columns")).put("rows", state.getInt("rows"))
-                .put("canUndo", backup(context, state) != null);
+                .put("columns", state.getInt("columns")).put("rows", state.getInt("rows"));
     }
 
     private static void apply(Context context, Object profile, Object controller, SQLiteDatabase db,
@@ -283,11 +277,9 @@ final class LauncherOrganizer {
         }
         List<Integer> screens = new ArrayList<>();
         List<int[]> reserved = new ArrayList<>();
-        JSONArray before = new JSONArray();
         for (int i = 0; i < items.length(); i++) {
             JSONObject row = items.getJSONObject(i);
             int id = row.getInt("_id");
-            if (moving.contains(id) || removedFolders.contains(id)) before.put(row);
             if (!onDesktop(row)) continue;
             screens.add(row.getInt("screen"));
             if (!moving.contains(id) && !removedFolders.contains(id)) {
@@ -297,12 +289,12 @@ final class LauncherOrganizer {
         List<int[]> sizes = new ArrayList<>();
         for (int i = 0; i < groups.length(); i++) {
             JSONObject group = groups.getJSONObject(i);
-            sizes.add(LauncherOrganizerLayout.folderSpan(group.getJSONArray("apps").length() > 1
-                    ? group.optInt("folderType", 0) : 0));
+            sizes.add(LauncherOrganizerLayout.folderSpan(LauncherOrganizerLayout.folderType(
+                    group.optInt("folderType", -1), group.getJSONArray("apps").length(),
+                    state.getInt("columns"), state.getInt("rows"))));
         }
         List<int[]> positions = LauncherOrganizerLayout.place(state.getInt("columns"), state.getInt("rows"), screens, reserved, sizes);
         JSONArray writes = new JSONArray();
-        JSONArray created = new JSONArray();
         ClassLoader loader = context.getClassLoader();
         Class<?> gridType = Class.forName(BASE + "folder.FolderGridOrganizer", false, loader);
         for (int i = 0; i < groups.length(); i++) {
@@ -319,7 +311,6 @@ final class LauncherOrganizer {
                 position(folder, -100, pos[0], pos[1], pos[2], 0);
                 folder.put("spanX", sizes.get(i)[0]).put("spanY", sizes.get(i)[1]);
                 writes.put(folder);
-                created.put(folderId);
                 container = folderId;
                 grid = gridType.getConstructor(int.class, int.class).newInstance(
                         (int) requiredField(profile, "numFolderColumns"), (int) requiredField(profile, "numFolderRows"));
@@ -330,15 +321,12 @@ final class LauncherOrganizer {
                 if (!row.has("_id")) {
                     int newId = (int) call(controller, "generateNewItemId");
                     row.put("_id", newId);
-                    created.put(newId);
                 }
                 Point cell = grid == null ? new Point(pos[1], pos[2]) : (Point) call(grid, "getPosForRank", int.class, rank);
                 position(row, container, pos[0], cell.x, cell.y, rank);
                 writes.put(row);
             }
         }
-        JSONObject undo = new JSONObject().put("database", state.getString("database"))
-                .put("before", before).put("created", created).put("beforeHash", state.getString("layoutHash"));
         db.beginTransaction();
         try {
             // Recheck inside the transaction; no partial layout is made visible.
@@ -354,40 +342,10 @@ final class LauncherOrganizer {
                 }
             }
             for (int id : removedFolders) db.delete("favorites", "_id=?", new String[]{Integer.toString(id)});
-            undo.put("afterHash", layoutHash(state, readRows(db)));
-            writeBackup(context, "pending", undo);
             db.setTransactionSuccessful();
         } finally {
             db.endTransaction();
         }
-        // A crash here is recoverable from the pending snapshot and its afterHash.
-        try {
-            writeBackup(context, "backup", undo);
-            backupFile(context, "pending").delete();
-        } catch (Exception error) {
-            FlymeStatusBarSizer.logLauncherWarning("Desktop undo snapshot remains in pending file", error);
-        }
-    }
-
-    private static void undo(Context context, SQLiteDatabase db, JSONObject state) throws Exception {
-        JSONObject backup = backup(context, state);
-        if (backup == null) throw new IllegalStateException("没有可恢复的布局，或整理后布局已被修改");
-        db.beginTransaction();
-        try {
-            if (!backup.getString("afterHash").equals(layoutHash(state, readRows(db)))) throw new IllegalStateException("布局已变化，无法撤销");
-            JSONArray created = backup.getJSONArray("created");
-            for (int i = 0; i < created.length(); i++) db.delete("favorites", "_id=?", new String[]{created.getString(i)});
-            JSONArray before = backup.getJSONArray("before");
-            for (int i = 0; i < before.length(); i++) {
-                JSONObject row = before.getJSONObject(i);
-                ContentValues values = contentValues(row);
-                if (db.update("favorites", values, "_id=?", new String[]{row.getString("_id")}) == 0) db.insertOrThrow("favorites", null, values);
-            }
-            if (!backup.getString("beforeHash").equals(layoutHash(state, readRows(db)))) throw new IllegalStateException("恢复校验失败，操作已取消");
-            db.setTransactionSuccessful();
-        } finally { db.endTransaction(); }
-        backupFile(context, "pending").delete();
-        backupFile(context, "backup").delete();
     }
 
     private static void position(JSONObject row, int container, int screen, int x, int y, int rank) throws Exception {
@@ -475,33 +433,6 @@ final class LauncherOrganizer {
 
     private static String digest(String text) throws Exception {
         return Base64.encodeToString(MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8)), Base64.NO_WRAP);
-    }
-
-    private static AtomicFile backupFile(Context context, String name) {
-        return new AtomicFile(new File(context.getFilesDir(), "flyme_bar_organizer_" + name + ".json"));
-    }
-
-    private static void writeBackup(Context context, String name, JSONObject data) throws Exception {
-        AtomicFile file = backupFile(context, name);
-        FileOutputStream out = file.startWrite();
-        try {
-            out.write(data.toString().getBytes(StandardCharsets.UTF_8));
-            file.finishWrite(out);
-        } catch (Exception error) {
-            file.failWrite(out);
-            throw error;
-        }
-    }
-
-    private static JSONObject backup(Context context, JSONObject state) {
-        for (String name : new String[]{"pending", "backup"}) {
-            try {
-                JSONObject data = new JSONObject(new String(backupFile(context, name).readFully(), StandardCharsets.UTF_8));
-                if (data.getString("database").equals(state.getString("database"))
-                        && data.getString("afterHash").equals(state.getString("layoutHash"))) return data;
-            } catch (Exception ignored) { }
-        }
-        return null;
     }
 
     private static Object requiredField(Object object, String name) {

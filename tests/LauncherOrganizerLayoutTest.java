@@ -23,6 +23,23 @@ public final class LauncherOrganizerLayoutTest {
         for (int type = 0; type < spans.length; type++) {
             check(Arrays.equals(LauncherOrganizerLayout.folderSpan(type), spans[type]), "native Flyme folder span " + type);
         }
+        int[][] automatic = {{1, 0}, {2, 2}, {3, 2}, {4, 3}, {9, 3}, {10, 4}, {12, 4},
+                {13, 5}, {18, 5}, {19, 6}, {21, 6}, {100, 6}};
+        for (int[] example : automatic) {
+            check(LauncherOrganizerLayout.folderType(-1, example[0], 5, 6) == example[1],
+                    "automatic size for " + example[0] + " apps");
+        }
+        check(LauncherOrganizerLayout.folderType(-1, 30, 4, 6) == 5, "cap at 6x3 on a four-column desktop");
+        check(LauncherOrganizerLayout.folderType(-1, 30, 3, 6) == 4, "cap at 4x3 on a three-column desktop");
+        check(LauncherOrganizerLayout.folderType(-1, 30, 2, 6) == 3, "cap at 3x3 on a two-column desktop");
+        check(LauncherOrganizerLayout.folderType(-1, 3, 1, 6) == 1, "use vertical preview on a narrow desktop");
+        check(LauncherOrganizerLayout.folderType(-1, 30, 5, 1) == 2, "use horizontal preview on a short desktop");
+        check(LauncherOrganizerLayout.folderType(-1, 30, 1, 1) == 0, "fall back to normal folder when no large folder fits");
+        for (int type = 0; type < spans.length; type++) {
+            check(LauncherOrganizerLayout.folderType(type, 2, 5, 6) == type
+                    && LauncherOrganizerLayout.folderType(type, 30, 5, 6) == type, "preserve manual size as apps move");
+            check(LauncherOrganizerLayout.folderType(type, 1, 5, 6) == 0, "single apps never create a folder");
+        }
         positions = LauncherOrganizerLayout.place(4, 3, List.of(0), List.of(new int[]{0, 0, 0, 4, 1}),
                 List.of(LauncherOrganizerLayout.folderSpan(5), new int[]{1, 1}, LauncherOrganizerLayout.folderSpan(1)));
         check(Arrays.equals(positions.get(0), new int[]{0, 0, 1}), "6x3 preview occupies 4x2 cells below widget");
@@ -48,7 +65,11 @@ public final class LauncherOrganizerLayoutTest {
             }
             int count = 1 + random.nextInt(100);
             List<int[]> sizes = new ArrayList<>();
-            for (int i = 0; i < count; i++) sizes.add(new int[]{1 + random.nextInt(columns), 1 + random.nextInt(rows)});
+            for (int i = 0; i < count; i++) {
+                sizes.add(i % 2 == 0
+                        ? LauncherOrganizerLayout.folderSpan(LauncherOrganizerLayout.folderType(-1, 1 + random.nextInt(50), columns, rows))
+                        : new int[]{1 + random.nextInt(columns), 1 + random.nextInt(rows)});
+            }
             positions = LauncherOrganizerLayout.place(columns, rows, List.of(0), reserved, sizes);
             check(positions.size() == count, "no omitted placements");
             for (int i = 0; i < count; i++) {
@@ -76,6 +97,8 @@ public final class LauncherOrganizerLayoutTest {
         rejects(() -> LauncherOrganizerLayout.validateMembership(List.of("a"), List.of(List.of(), List.of("a"))));
         rejects(() -> LauncherOrganizerLayout.folderSpan(-1));
         rejects(() -> LauncherOrganizerLayout.folderSpan(7));
+        rejects(() -> LauncherOrganizerLayout.folderType(-2, 5, 4, 6));
+        rejects(() -> LauncherOrganizerLayout.folderType(7, 5, 4, 6));
         rejects(() -> LauncherOrganizerLayout.place(0, 6, List.of(), List.of(), List.of(new int[]{1, 1})));
         rejects(() -> LauncherOrganizerLayout.place(4, 6, List.of(0), List.of(new int[]{0, 3, 0, 2, 1}), List.of(new int[]{1, 1})));
         rejects(() -> LauncherOrganizerLayout.place(3, 6, List.of(0), List.of(), List.of(LauncherOrganizerLayout.folderSpan(5))));

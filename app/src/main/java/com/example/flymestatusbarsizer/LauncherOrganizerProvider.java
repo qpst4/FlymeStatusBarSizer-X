@@ -36,7 +36,8 @@ public final class LauncherOrganizerProvider extends ContentProvider {
         for (int i = 0; i < apps.length(); i++) expected.add(apps.getJSONObject(i).getString("id"));
         for (int i = 0; i < groups.length(); i++) {
             JSONObject group = groups.getJSONObject(i);
-            LauncherOrganizerLayout.folderSpan(group.optInt("folderType", 0));
+            int type = group.optInt("folderType", -1);
+            if (type != -1) LauncherOrganizerLayout.folderSpan(type);
             String name = group.getString("name").trim();
             if (name.isEmpty() || name.length() > 30 || !names.add(name)) throw new IllegalArgumentException("分类名称为空、过长或重复");
             group.put("name", name);
@@ -65,7 +66,7 @@ public final class LauncherOrganizerProvider extends ContentProvider {
                 if (("pending".equals(state) || "running".equals(state)) && age < 120_000) {
                     throw new IllegalStateException("上一项桌面操作尚未完成");
                 }
-                if (!"read".equals(arg) && !"apply".equals(arg) && !"undo".equals(arg)) {
+                if (!"read".equals(arg) && !"apply".equals(arg)) {
                     throw new IllegalArgumentException("未知操作");
                 }
                 String id = UUID.randomUUID().toString();
