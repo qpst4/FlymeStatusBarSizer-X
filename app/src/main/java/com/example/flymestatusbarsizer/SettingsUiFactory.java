@@ -136,6 +136,7 @@ final class SettingsUiFactory {
     }
 
     void addHelpButton(LinearLayout row, String titleText, String message) {
+        activity.addSearchItem(row, titleText, message);
         if (message == null || message.length() == 0) {
             return;
         }

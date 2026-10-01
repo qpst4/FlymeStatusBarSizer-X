@@ -14,17 +14,18 @@ final class AboutPageController {
     }
 
     static void bind(MainActivity activity, LinearLayout root) {
-        root.addView(buildAppCard(activity), PageViewUtils.matchWrap());
-        root.addView(buildProjectCard(activity), PageViewUtils.matchWrapWithTop(activity, 8));
-        root.addView(buildBuildCard(activity), PageViewUtils.matchWrapWithTop(activity, 8));
+        root.addView(buildAppCard(activity, true), PageViewUtils.matchWrap());
+        root.addView(buildProjectCard(activity, true), PageViewUtils.matchWrapWithTop(activity, 8));
+        root.addView(buildBuildCard(activity, true), PageViewUtils.matchWrapWithTop(activity, 8));
     }
 
-    private static View buildAppCard(MainActivity activity) {
+    private static View buildAppCard(MainActivity activity, boolean expanded) {
         PackageManager packageManager = activity.getPackageManager();
         ComponentName launcher = new ComponentName(activity, MainActivity.class.getName() + "Alias");
         Switch toggle = new Switch(activity);
         activity.styleSwitch(toggle);
         toggle.setText("隐藏桌面图标");
+        activity.addSearchItem(toggle, toggle.getText().toString(), "从 LSPosed 模块页面打开设置");
         toggle.setTextColor(activity.textColor());
         toggle.setTextSize(16);
         toggle.setMinHeight(PageViewUtils.dp(activity, 44));
@@ -48,10 +49,10 @@ final class AboutPageController {
             }
         });
         return activity.buildSectionCard("应用设置",
-                "隐藏后，可从 LSPosed 的模块页面打开设置，关闭此开关即可恢复图标。", toggle);
+                "隐藏后，可从 LSPosed 的模块页面打开设置，关闭此开关即可恢复图标。", toggle, expanded);
     }
 
-    private static View buildProjectCard(MainActivity activity) {
+    private static View buildProjectCard(MainActivity activity, boolean expanded) {
         LinearLayout content = new LinearLayout(activity);
         content.setOrientation(LinearLayout.VERTICAL);
         content.addView(buildLinkRow(activity,
@@ -70,10 +71,11 @@ final class AboutPageController {
         return activity.buildSectionCard(
                 "项目与社区",
                 "保留仓库地址和交流群入口，不再额外占用一级导航。",
-                content);
+                content,
+                expanded);
     }
 
-    private static View buildBuildCard(MainActivity activity) {
+    private static View buildBuildCard(MainActivity activity, boolean expanded) {
         LinearLayout content = new LinearLayout(activity);
         content.setOrientation(LinearLayout.VERTICAL);
         content.addView(buildInfoRow(activity, "当前版本", BuildConfig.VERSION_NAME), PageViewUtils.matchWrap());
@@ -84,7 +86,8 @@ final class AboutPageController {
         return activity.buildSectionCard(
                 "版本与作用域",
                 "这里展示静态构建信息，以及模块在仓库里声明的目标作用域。",
-                content);
+                content,
+                expanded);
     }
 
     private static LinearLayout buildLinkRow(
@@ -121,6 +124,7 @@ final class AboutPageController {
                 PageViewUtils.dp(activity, 6));
         button.setBackground(buildOutlinedButtonBackground(activity));
         button.setOnClickListener(v -> activity.openExternalLink(url));
+        activity.addSearchItem(row, titleText, summaryText);
         row.addView(button, PageViewUtils.matchWrapWithTop(activity, 8));
         return row;
     }

@@ -139,6 +139,7 @@ final class ClockExpressionEditor {
         RowTouchState touchState = new RowTouchState();
         TextView chip = new TextView(activity);
         chip.setText(getTokenLabel(token));
+        activity.addSearchItem(chip, getTokenLabel(token), "时间表达式");
         chip.setTextColor(enabled ? activity.textColor() : activity.subtextColor());
         chip.setTextSize(12);
         chip.setGravity(Gravity.CENTER);

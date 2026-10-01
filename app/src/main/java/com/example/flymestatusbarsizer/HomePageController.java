@@ -34,9 +34,10 @@ final class HomePageController {
         root.addView(titleRow, PageViewUtils.matchWrapWithTop(activity, 4));
         root.addView(text(activity, "让系统界面更合心意", 14, activity.subtextColor()),
                 PageViewUtils.matchWrapWithTop(activity, 4));
-        root.addView(buildRestartCard(activity), PageViewUtils.matchWrapWithTop(activity, 12));
+        LinearLayout content = activity.addFeatureSearch(root);
+        content.addView(buildRestartCard(activity), PageViewUtils.matchWrapWithTop(activity, 12));
 
-        LinearLayout personal = addGroup(activity, root, "个性化");
+        LinearLayout personal = addGroup(activity, content, "个性化");
         addEntry(activity, personal, "图标与电池", "图标大小 · 电池样式",
                 R.drawable.ic_settings_battery, MainActivity.Page.ICONS_BATTERY);
         addEntry(activity, personal, "时间与网络", "时间样式 · 实时网速",
@@ -46,7 +47,7 @@ final class HomePageController {
         addEntry(activity, personal, "系统交互", "导航手势 · 输入法工具栏",
                 R.drawable.ic_settings_interaction, MainActivity.Page.SYSTEM_INTERACTION);
 
-        LinearLayout tools = addGroup(activity, root, "工具与支持");
+        LinearLayout tools = addGroup(activity, content, "工具与支持");
         addEntry(activity, tools, "高级与调试", "配置管理 · 布局微调",
                 R.drawable.ic_settings_tune, MainActivity.Page.ADVANCED_DEBUG);
         addEntry(activity, tools, "关于与支持", "版本信息 · 项目与交流",

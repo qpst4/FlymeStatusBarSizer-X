@@ -169,6 +169,7 @@ final class ImeToolbarEditor {
     private TextView buildPoolItem(String button) {
         TextView item = new TextView(activity);
         item.setText(ImeToolbarSpec.getButtonLabel(button));
+        activity.addSearchItem(item, ImeToolbarSpec.getButtonLabel(button), "输入法控制栏按钮");
         item.setTextColor(activity.textColor());
         item.setTextSize(14);
         item.setGravity(Gravity.CENTER);
@@ -211,6 +212,7 @@ final class ImeToolbarEditor {
         slot.setBackground(buildSlotBackground(!TextUtils.isEmpty(button) || covered, false));
         slot.setOnDragListener(this::handleSlotDrag);
         if (!TextUtils.isEmpty(button) && !covered) {
+            activity.addSearchItem(slot, ImeToolbarSpec.getButtonLabel(button), "输入法控制栏按钮");
             slot.setOnLongClickListener(v -> startDrag(v, button, slotIndex));
         }
 

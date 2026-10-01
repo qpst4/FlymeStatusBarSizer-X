@@ -699,6 +699,7 @@ final class LauncherOrganizerPage {
         edit.setSingleLine(true);
         edit.setInputType(InputType.TYPE_CLASS_TEXT | (password ? InputType.TYPE_TEXT_VARIATION_PASSWORD : InputType.TYPE_TEXT_VARIATION_URI));
         edit.setHint(hint);
+        activity.addSearchItem(edit, title, hint);
         edit.setText(value);
         edit.setSaveEnabled(false);
         edit.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
@@ -746,6 +747,7 @@ final class LauncherOrganizerPage {
     private void button(LinearLayout root, String title, Runnable action) {
         TextView button = activity.filledButton(title, activity.primaryColor(), Color.WHITE);
         activity.setTapClickListener(button, view -> action.run());
+        activity.addSearchItem(button, title, "");
         root.addView(button, activity.matchWrapWithTop(8));
         controls.add(button);
     }

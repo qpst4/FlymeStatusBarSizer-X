@@ -9,6 +9,8 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
+import android.graphics.Rect;
+import android.graphics.drawable.Drawable;
 import android.graphics.Typeface;
 import android.graphics.drawable.RippleDrawable;
 import android.graphics.drawable.GradientDrawable;
@@ -19,13 +21,17 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.InputType;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
+import android.view.inputmethod.EditorInfo;
 import android.window.OnBackInvokedCallback;
 import android.window.OnBackInvokedDispatcher;
 import android.widget.CompoundButton;
@@ -36,6 +42,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.PopupMenu;
 import android.widget.SeekBar;
+import android.widget.ScrollView;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -57,6 +64,7 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 public class MainActivity extends Activity {
+    private static final Pattern SEARCH_TEXT_PATTERN = Pattern.compile("[^\\p{L}\\p{N}]");
     private static final int REQUEST_EXPORT_CONFIG = 1001;
     private static final int REQUEST_IMPORT_CONFIG = 1002;
 
@@ -125,6 +133,10 @@ public class MainActivity extends Activity {
     private final Map<Page, View> pageViews = new LinkedHashMap<>();
     private final ArrayDeque<Page> navigationStack = new ArrayDeque<>();
     private Page currentPage = Page.HOME;
+    private View searchHighlightedView;
+    private Drawable searchPreviousForeground;
+    private final Runnable searchHighlightReset = this::clearSearchHighlight;
+    private Runnable refreshSearchResults;
     private final ClockExpressionEditor clockExpressionEditor = new ClockExpressionEditor(this);
     private final ClockDetailActionGridEditor clockDetailActionGridEditor =
             new ClockDetailActionGridEditor(this);
@@ -191,6 +203,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        clearSearchHighlight();
         unregisterSystemBackCallback();
         super.onDestroy();
     }
@@ -247,6 +260,7 @@ public class MainActivity extends Activity {
     }
 
     private void bindPages() {
+        clearSearchHighlight();
         pageViews.clear();
         registerPage(Page.HOME, R.layout.page_home, HomePageController::bind);
         registerPage(Page.ICONS_BATTERY, R.layout.page_icons_battery, IconsBatteryPageController::bind);
@@ -284,6 +298,238 @@ public class MainActivity extends Activity {
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT));
         pageViews.put(page, pageView);
+        addSearchItem(pageView, page.title, page.subtitle);
+    }
+
+    void addSearchItem(View view, String title, String description) {
+        if (!TextUtils.isEmpty(title)) {
+            view.setTag(R.id.feature_search_metadata, new String[]{title, description});
+        }
+    }
+
+    LinearLayout addFeatureSearch(LinearLayout root) {
+        LinearLayout bar = new LinearLayout(this);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        bar.setBackground(outlinedRect(colorSurface, colorStroke, 1, 16));
+        bar.setClipToOutline(true);
+        EditText input = new EditText(this);
+        input.setId(R.id.feature_search_input);
+        input.setHint("搜索功能，如电池、网速");
+        input.setContentDescription("搜索功能");
+        input.setTextSize(16);
+        input.setTextColor(colorText);
+        input.setHintTextColor(colorSubtext);
+        input.setSingleLine(true);
+        input.setInputType(InputType.TYPE_CLASS_TEXT);
+        input.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
+        input.setBackground(null);
+        input.setPadding(dp(12), dp(8), dp(8), dp(8));
+        input.setMinHeight(dp(48));
+        input.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_feature_search, 0, 0, 0);
+        input.setCompoundDrawablePadding(dp(8));
+        input.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
+        bar.addView(input, new LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        TextView clear = new TextView(this);
+        clear.setText("×");
+        clear.setTextSize(24);
+        clear.setTextColor(colorSubtext);
+        clear.setGravity(Gravity.CENTER);
+        clear.setContentDescription("清除搜索");
+        clear.setVisibility(View.GONE);
+        setTapClickListener(clear, v -> input.setText(""));
+        bar.addView(clear, new LinearLayout.LayoutParams(dp(48), dp(48)));
+        root.addView(bar, matchWrapWithTop(12));
+
+        LinearLayout results = new LinearLayout(this);
+        results.setOrientation(LinearLayout.VERTICAL);
+        results.setVisibility(View.GONE);
+        root.addView(results, matchWrapWithTop(8));
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        root.addView(content, matchWrap());
+        refreshSearchResults = () -> updateFeatureSearch(input, results, content);
+        input.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                clear.setVisibility(s.length() == 0 ? View.GONE : View.VISIBLE);
+                updateFeatureSearch(input, results, content);
+            }
+            @Override public void afterTextChanged(Editable text) { }
+        });
+        input.setOnEditorActionListener((view, actionId, event) -> {
+            if (actionId != EditorInfo.IME_ACTION_SEARCH) return false;
+            getSystemService(InputMethodManager.class).hideSoftInputFromWindow(input.getWindowToken(), 0);
+            return true;
+        });
+        root.setFocusableInTouchMode(true);
+        root.requestFocus();
+        return content;
+    }
+
+    private void updateFeatureSearch(EditText input, LinearLayout results, LinearLayout content) {
+        String query = input.getText().toString().trim();
+        boolean searching = !normalizeSearchText(query).isEmpty();
+        content.setVisibility(searching ? View.GONE : View.VISIBLE);
+        results.setVisibility(searching ? View.VISIBLE : View.GONE);
+        results.removeAllViews();
+        if (!searching) return;
+        ArrayList<SearchResult> matches = new ArrayList<>();
+        for (Map.Entry<Page, View> page : pageViews.entrySet()) {
+            collectSearchResults(page.getValue(), page.getKey(),
+                    page.getKey() == Page.HOME ? "首页" : page.getKey().title, query, matches);
+        }
+        matches.sort((a, b) -> Integer.compare(a.rank, b.rank));
+        TextView count = new TextView(this);
+        count.setText(matches.isEmpty() ? "未找到相关功能，试试其他关键词" : "找到 " + matches.size() + " 项功能");
+        count.setTextColor(colorSubtext);
+        count.setTextSize(13);
+        results.addView(count, matchWrap());
+        for (SearchResult match : matches) {
+            LinearLayout row = card(colorSurface, 16);
+            TextView title = new TextView(this);
+            title.setText(match.title);
+            title.setTextColor(colorText);
+            title.setTextSize(16);
+            row.addView(title, matchWrap());
+            TextView path = new TextView(this);
+            path.setText(match.path);
+            path.setTextColor(colorSubtext);
+            path.setTextSize(12);
+            row.addView(path, matchWrapWithTop(4));
+            setTapClickListener(row, v -> showSearchResult(input, match));
+            results.addView(row, matchWrapWithTop(8));
+        }
+    }
+
+    private void collectSearchResults(View view, Page page, String path, String query,
+            ArrayList<SearchResult> matches) {
+        Object category = view.getTag(R.id.feature_search_category);
+        if (category instanceof String) path += " › " + category;
+        Object metadata = view.getTag(R.id.feature_search_metadata);
+        if (metadata instanceof String[]) {
+            String[] text = (String[]) metadata;
+            int rank = searchRank(text[0], text[1], path, query);
+            if (rank >= 0) matches.add(new SearchResult(view, page, text[0], path, rank));
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                collectSearchResults(group.getChildAt(i), page, path, query, matches);
+            }
+        }
+    }
+
+    static String normalizeSearchText(String text) {
+        return text == null ? "" : SEARCH_TEXT_PATTERN.matcher(text.toLowerCase(Locale.ROOT)).replaceAll("");
+    }
+
+    static int searchRank(String title, String description, String path, String query) {
+        String name = normalizeSearchText(title);
+        String details = name + " " + normalizeSearchText(description);
+        String all = details + " " + normalizeSearchText(path);
+        boolean titleMatch = true;
+        boolean detailMatch = true;
+        if (normalizeSearchText(query).isEmpty()) return -1;
+        for (String word : query.trim().split("\\s+")) {
+            String token = normalizeSearchText(word);
+            if (!all.contains(token)) return -1;
+            titleMatch &= name.contains(token);
+            detailMatch &= details.contains(token);
+        }
+        if (name.equals(normalizeSearchText(query))) return 0;
+        return titleMatch ? 1 : detailMatch ? 2 : 3;
+    }
+
+    private void showSearchResult(EditText input, SearchResult result) {
+        View page = pageViews.get(result.page);
+        View ancestor = result.target;
+        while (ancestor != page && ancestor.getParent() instanceof View) {
+            ancestor = (View) ancestor.getParent();
+        }
+        if (ancestor != page) {
+            refreshSearchResults.run();
+            showToast("功能列表已更新，请重新选择");
+            return;
+        }
+        input.clearFocus();
+        getSystemService(InputMethodManager.class).hideSoftInputFromWindow(input.getWindowToken(), 0);
+        if (result.page == Page.HOME) input.setText("");
+        openPage(result.page);
+        for (View node = result.target; node != page; ) {
+            Object expand = node.getTag(R.id.feature_search_expand);
+            if (expand instanceof Runnable) ((Runnable) expand).run();
+            if (!(node.getParent() instanceof View)) break;
+            node = (View) node.getParent();
+        }
+        View target = result.target;
+        View hidden = null;
+        for (View node = target; node != page; node = (View) node.getParent()) {
+            if (node.getVisibility() != View.VISIBLE) hidden = node;
+        }
+        if (hidden != null) {
+            ViewGroup parent = (ViewGroup) hidden.getParent();
+            target = parent;
+            String prerequisite = null;
+            for (int i = parent.indexOfChild(hidden) - 1; i >= 0 && prerequisite == null; i--) {
+                View sibling = parent.getChildAt(i);
+                Object metadata = sibling.getTag(R.id.feature_search_metadata);
+                if (!(metadata instanceof String[]) || !(sibling instanceof ViewGroup)
+                        || sibling.getVisibility() != View.VISIBLE) continue;
+                ViewGroup row = (ViewGroup) sibling;
+                for (int j = 0; j < row.getChildCount(); j++) {
+                    if (row.getChildAt(j) instanceof Switch) {
+                        target = sibling;
+                        prerequisite = ((String[]) metadata)[0];
+                        break;
+                    }
+                }
+            }
+            showToast(prerequisite == null ? "该选项暂未显示，请先检查本分类的开关"
+                    : "请先开启「" + prerequisite + "」");
+        }
+        View destination = target;
+        page.post(() -> {
+            if (currentPage != result.page || !destination.isAttachedToWindow()) return;
+            if (page instanceof ScrollView) {
+                ScrollView scroll = (ScrollView) page;
+                Rect bounds = new Rect();
+                destination.getDrawingRect(bounds);
+                scroll.offsetDescendantRectToMyCoords(destination, bounds);
+                scroll.smoothScrollTo(0, destination == page ? 0 : Math.max(0, bounds.top - dp(12)));
+            }
+            clearSearchHighlight();
+            if (destination != page) {
+                searchHighlightedView = destination;
+                searchPreviousForeground = destination.getForeground();
+                destination.setForeground(outlinedRect(0x186750A4, colorPrimary, 1, 12));
+                destination.postDelayed(searchHighlightReset, 1400);
+            }
+        });
+    }
+
+    private void clearSearchHighlight() {
+        if (searchHighlightedView == null) return;
+        searchHighlightedView.removeCallbacks(searchHighlightReset);
+        searchHighlightedView.setForeground(searchPreviousForeground);
+        searchHighlightedView = null;
+        searchPreviousForeground = null;
+    }
+
+    private static final class SearchResult {
+        final View target;
+        final Page page;
+        final String title;
+        final String path;
+        final int rank;
+
+        SearchResult(View target, Page page, String title, String path, int rank) {
+            this.target = target;
+            this.page = page;
+            this.title = title;
+            this.path = path;
+            this.rank = rank;
+        }
     }
 
     void openPage(Page page) {
@@ -303,6 +549,7 @@ public class MainActivity extends Activity {
             entry.getValue().setVisibility(entry.getKey() == page ? View.VISIBLE : View.GONE);
         }
         resetPageTransforms();
+        if (page == Page.HOME && refreshSearchResults != null) refreshSearchResults.run();
         updateTopBar(page);
         updateSystemBackCallbackRegistration();
     }
@@ -2254,6 +2501,10 @@ public class MainActivity extends Activity {
     }
 
     View buildSectionCard(String titleText, String subtitleText, View content) {
+        return buildSectionCard(titleText, subtitleText, content, false);
+    }
+
+    View buildSectionCard(String titleText, String subtitleText, View content, boolean expanded) {
         LinearLayout card = card(colorSurface, 24);
         card.setPadding(0, 0, 0, 0);
         card.setClipToOutline(true);
@@ -2277,16 +2528,19 @@ public class MainActivity extends Activity {
         if (content != null) {
             ImageView arrow = new ImageView(this);
             arrow.setImageResource(R.drawable.ic_section_expand);
-            arrow.setRotation(-90f);
+            arrow.setRotation(expanded ? 0f : -90f);
             arrow.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
             header.addView(arrow, new LinearLayout.LayoutParams(dp(24), dp(24)));
-            content.setVisibility(View.GONE);
+            content.setVisibility(expanded ? View.VISIBLE : View.GONE);
             LinearLayout.LayoutParams contentLp = matchWrapWithTop(4);
             contentLp.leftMargin = dp(16);
             contentLp.rightMargin = dp(16);
             contentLp.bottomMargin = dp(12);
             card.addView(content, contentLp);
-            header.setContentDescription(titleText + "，已收起，点击展开");
+            header.setPadding(dp(16), dp(12), dp(16), expanded ? 0 : dp(12));
+            header.setMinimumHeight(dp(expanded ? 52 : 64));
+            header.setContentDescription(titleText + (expanded
+                    ? "，已展开，点击收起" : "，已收起，点击展开"));
             setTapClickListener(header, v -> {
                 boolean expand = content.getVisibility() != View.VISIBLE;
                 View focused = content.findFocus();
@@ -2302,6 +2556,12 @@ public class MainActivity extends Activity {
                 header.setContentDescription(titleText + (expand
                         ? "，已展开，点击收起" : "，已收起，点击展开"));
             });
+            Runnable expandSection = () -> {
+                if (content.getVisibility() != View.VISIBLE) header.performClick();
+            };
+            header.setTag(R.id.feature_search_expand, expandSection);
+            content.setTag(R.id.feature_search_expand, expandSection);
+            content.setTag(R.id.feature_search_category, titleText);
         }
         return card;
     }

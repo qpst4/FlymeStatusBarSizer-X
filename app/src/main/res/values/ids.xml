@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="feature_search_input" type="id" />
+    <item name="feature_search_metadata" type="id" />
+    <item name="feature_search_category" type="id" />
+    <item name="feature_search_expand" type="id" />
+</resources>
