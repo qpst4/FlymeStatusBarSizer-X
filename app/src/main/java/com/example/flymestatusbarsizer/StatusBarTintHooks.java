@@ -8,6 +8,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.Color;
+import android.graphics.Rect;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
@@ -36,6 +37,8 @@ final class StatusBarTintHooks {
     private static final String QS = "com.flyme.systemui.controlcenter.qs.QSStatusBarController";
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
     private static final Map<Object, Integer> PANEL_COLORS = new WeakHashMap<>();
+    // Also tracks native dark receivers; headers have no overridden tint and keep a null value.
+    private static final Map<Object, Integer> PANEL_TINTS = new WeakHashMap<>();
     private static final Map<View, WeakReference<Object>> LOCK_VIEWS = new WeakHashMap<>();
     private static final Runnable UPDATE = StatusBarTintHooks::updateColors;
     private static final Runnable SEND = () -> sendLauncherScene(false);
@@ -44,12 +47,17 @@ final class StatusBarTintHooks {
     private static Context systemContext;
     private static int launcherScene = -1, sentScene = -2, lastScene = -2;
     private static boolean launcherReceiverRegistered, launcherVisible;
+    private static boolean shadeExpanded, centerExpanded;
     private static boolean replaying;
     // Keep native inputs separate; dispatcher fields always hold the effective scene color.
     private static final ArgbEvaluator ARGB = new ArgbEvaluator();
-    private static ArrayList<?> nativeAreas = new ArrayList<>();
+    private static final ArrayList<Rect> EMPTY_AREAS = new ArrayList<>();
+    private static ArrayList<Rect> nativeAreas = new ArrayList<>();
     private static float nativeIntensity;
     private static int nativeTint = Color.WHITE, nativeContrast = Color.BLACK;
+    private static ArrayList<Rect> appliedAreas, panelNativeAreas;
+    private static int appliedScene = -2, appliedTint, appliedContrast, panelNativeTint;
+    private static float appliedIntensity;
 
     private StatusBarTintHooks() {}
 
@@ -62,10 +70,12 @@ final class StatusBarTintHooks {
                     if (chain.getArgs().size() > 1 && Integer.valueOf(0).equals(chain.getArg(0))
                             && chain.getArg(1) instanceof Context) {
                         dispatcher = chain.getThisObject();
-                        nativeAreas = new ArrayList<>((ArrayList<?>) field(dispatcher, "mTintAreas"));
+                        nativeAreas = copyAreas((ArrayList<?>) field(dispatcher, "mTintAreas"));
                         nativeIntensity = (Float) field(dispatcher, "mDarkIntensity");
                         nativeTint = (Integer) field(dispatcher, "mIconTint");
                         nativeContrast = (Integer) field(dispatcher, "mContrastTint");
+                        appliedAreas = null;
+                        panelNativeAreas = null;
                         registerSceneReceiver((Context) chain.getArg(1));
                     }
                     return result;
@@ -83,14 +93,16 @@ final class StatusBarTintHooks {
             nativeContrast = (Integer) ARGB.evaluate(nativeIntensity,
                     field(dispatcher, "mLightModeContrastColor"),
                     field(dispatcher, "mDarkModeContrastColor"));
-            applyDispatcherTint();
+            applyDispatcherTint(false);
             return null;
         });
         hook(module, loader, PHONE + "DarkIconDispatcherImpl", "setIconsDarkArea", chain -> {
             if (chain.getThisObject() != dispatcher) return chain.proceed();
             ArrayList<?> areas = (ArrayList<?>) chain.getArg(0);
-            nativeAreas = areas == null ? new ArrayList<>() : new ArrayList<>(areas);
-            applyDispatcherTint();
+            if (areas == null ? !nativeAreas.isEmpty() : !nativeAreas.equals(areas)) {
+                nativeAreas = copyAreas(areas);
+            }
+            applyDispatcherTint(false);
             return null;
         });
         // Compiled animation callers must enter the hooks instead of an inlined color calculation.
@@ -100,11 +112,21 @@ final class StatusBarTintHooks {
         for (String type : new String[]{HEADER, QS}) {
             hook(module, loader, type, "onDarkChanged", chain -> {
                 // Panel caches must retain native colors, not the desktop override.
+                PANEL_TINTS.putIfAbsent(chain.getThisObject(), null);
                 return dispatcher == null ? chain.proceed()
                         : chain.proceed(new Object[]{nativeAreas, nativeIntensity, nativeTint});
             });
+            hook(module, loader, type, QS.equals(type) ? "onViewDetached" : "onDetachedFromWindow", chain -> {
+                PANEL_TINTS.remove(chain.getThisObject());
+                PANEL_COLORS.remove(chain.getThisObject());
+                return chain.proceed();
+            });
             // The expanded header also colors editing controls and dates; only tint the status bar.
             if (!QS.equals(type)) continue;
+            hook(module, loader, type, "onViewAttached", chain -> {
+                PANEL_TINTS.remove(chain.getThisObject());
+                return chain.proceed();
+            });
             hook(module, loader, type, "updateViewColor", chain -> {
                 Object target = chain.getThisObject();
                 if (!replaying) PANEL_COLORS.put(target, (Integer) chain.getArg(0));
@@ -113,8 +135,14 @@ final class StatusBarTintHooks {
                 int panelScene = bool(target, "mIsBelongToClassicPanel")
                         ? (currentScene == 3 ? 3 : 2) : 3;
                 int selected = mode(currentScene == panelScene ? panelScene : -1);
-                return selected == 0 ? chain.proceed()
+                int tint = selected == 0 ? (Integer) chain.getArg(0) : color(selected);
+                Integer previous = PANEL_TINTS.get(target);
+                if (previous != null && previous == tint) return null;
+                Object result = selected == 0 ? chain.proceed()
                         : chain.proceed(new Object[]{color(selected)});
+                // The first callback during attachment arrives before the icon manager exists.
+                if (field(target, "mIconManager") != null) PANEL_TINTS.put(target, tint);
+                return result;
             });
         }
         hook(module, loader, PHONE + "KeyguardStatusBarView", "updateIconsAndTextColors", chain -> {
@@ -134,7 +162,7 @@ final class StatusBarTintHooks {
             }
         });
         watch(module, loader, "com.android.systemui.shade.NotificationPanelViewController",
-                new String[]{"updateExpansionAndVisibility", "updateVisibility"}, 0);
+                new String[]{"updateExpansionAndVisibility"}, 0);
         watch(module, loader, "com.flyme.systemui.controlcenter.phone.CenterController",
                 new String[]{"updatePanelExpanded"}, 1);
         watch(module, loader, "com.android.systemui.statusbar.policy.KeyguardStateControllerImpl",
@@ -155,8 +183,22 @@ final class StatusBarTintHooks {
         for (String name : names) hook(module, loader, type, name, chain -> {
             Object result = chain.proceed();
             switch (kind) {
-                case 0: panel = chain.getThisObject(); break;
-                case 1: center = chain.getThisObject(); break;
+                case 0: {
+                    Object target = chain.getThisObject();
+                    boolean expanded = positive(target, "mExpandedFraction");
+                    if (panel == target && shadeExpanded == expanded) return result;
+                    panel = target;
+                    shadeExpanded = expanded;
+                    break;
+                }
+                case 1: {
+                    Object target = chain.getThisObject();
+                    boolean expanded = positive(target, "mExpandedFraction");
+                    if (center == target && centerExpanded == expanded) return result;
+                    center = target;
+                    centerExpanded = expanded;
+                    break;
+                }
                 case 2: keyguard = chain.getThisObject(); break;
                 case 3: statusState = chain.getThisObject(); break;
                 default: break;
@@ -220,7 +262,9 @@ final class StatusBarTintHooks {
     }
 
     private static void updateColors() {
-        applyDispatcherTint();
+        // Explicit scene/config refreshes must also recolor rebuilt views with the same tint.
+        PANEL_TINTS.replaceAll((target, tint) -> null);
+        applyDispatcherTint(true);
         replaying = true;
         try {
             for (Map.Entry<Object, Integer> entry : new ArrayList<>(PANEL_COLORS.entrySet())) {
@@ -237,17 +281,47 @@ final class StatusBarTintHooks {
         }
     }
 
-    private static void applyDispatcherTint() {
+    private static ArrayList<Rect> copyAreas(ArrayList<?> areas) {
+        ArrayList<Rect> copy = new ArrayList<>();
+        if (areas != null) {
+            for (Object area : areas) copy.add(new Rect((Rect) area));
+        }
+        return copy;
+    }
+
+    private static void applyDispatcherTint(boolean force) {
         if (dispatcher == null) return;
-        int selected = mode(scene());
+        int currentScene = scene();
+        int selected = mode(currentScene);
+        ArrayList<Rect> areas = selected == 0 ? nativeAreas : EMPTY_AREAS;
+        float intensity = selected == 0 ? nativeIntensity : selected == 1 ? 1f : 0f;
+        int tint = selected == 0 ? nativeTint : color(selected);
+        int contrast = selected == 0 ? nativeContrast : color(selected == 1 ? 2 : 1);
+        boolean nativeChanged = panelNativeTint != nativeTint || panelNativeAreas != nativeAreas;
+        panelNativeTint = nativeTint;
+        panelNativeAreas = nativeAreas;
+        if (!force && appliedScene == currentScene && appliedAreas == areas
+                && appliedIntensity == intensity && appliedTint == tint && appliedContrast == contrast) {
+            // The fixed output did not change. Only panels need the updated native colors.
+            if (nativeChanged) {
+                for (Object target : new ArrayList<>(PANEL_TINTS.keySet())) {
+                    ReflectUtils.invokeMethod(target, "onDarkChanged",
+                            new Class<?>[]{ArrayList.class, float.class, int.class},
+                            nativeAreas, nativeIntensity, nativeTint);
+                }
+            }
+            return;
+        }
+        appliedScene = currentScene;
+        appliedAreas = areas;
+        appliedIntensity = intensity;
+        appliedTint = tint;
+        appliedContrast = contrast;
         // Publish one consistent state to callbacks, newly added icons and the notification flow.
-        ReflectUtils.setField(dispatcher, "mTintAreas",
-                selected == 0 ? new ArrayList<>(nativeAreas) : new ArrayList<>());
-        ReflectUtils.setFloatField(dispatcher, "mDarkIntensity",
-                selected == 0 ? nativeIntensity : selected == 1 ? 1f : 0f);
-        ReflectUtils.setIntField(dispatcher, "mIconTint", selected == 0 ? nativeTint : color(selected));
-        ReflectUtils.setIntField(dispatcher, "mContrastTint",
-                selected == 0 ? nativeContrast : color(selected == 1 ? 2 : 1));
+        ReflectUtils.setField(dispatcher, "mTintAreas", areas);
+        ReflectUtils.setFloatField(dispatcher, "mDarkIntensity", intensity);
+        ReflectUtils.setIntField(dispatcher, "mIconTint", tint);
+        ReflectUtils.setIntField(dispatcher, "mContrastTint", contrast);
         ReflectUtils.invokeNoArg(dispatcher, "applyIconTint");
     }
 

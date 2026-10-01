@@ -2020,11 +2020,15 @@ public class FlymeStatusBarSizer extends XposedModule {
                 if (target instanceof View) {
                     View batteryView = (View) target;
                     BatteryViewState state = rememberBatteryViewState(batteryView);
+                    boolean hadSnapshot = state.hasRuntimeSnapshot;
+                    int oldTint = state.tintColor;
                     if (refreshBatteryViewRuntimeSnapshot(batteryView, state)) {
                         batteryView.invalidate();
                     }
-                    NotificationHooks.refreshNotificationTextFollowStatusBarForTintChange(
-                            batteryView);
+                    if ((!hadSnapshot || oldTint != state.tintColor) && batteryView.isShown()) {
+                        NotificationHooks.refreshNotificationTextFollowStatusBarForTintChange(
+                                batteryView);
+                    }
                 }
                 return result;
             });
