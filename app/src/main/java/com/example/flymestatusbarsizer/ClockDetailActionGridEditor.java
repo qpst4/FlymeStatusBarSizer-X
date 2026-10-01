@@ -95,7 +95,7 @@ final class ClockDetailActionGridEditor {
             SelectedCellViews[] selectedCellViews,
             TextView selectedSummaryView,
             Map<String, CandidateRowViews> candidateRows) {
-        LinearLayout card = activity.card(activity.surfaceSoftColor(), activity.strokeColor(), 24);
+        LinearLayout card = activity.card(activity.surfaceSoftColor(), 24);
         activity.addProfileSectionHeader(
                 card,
                 "已选入口",
@@ -201,7 +201,7 @@ final class ClockDetailActionGridEditor {
             SelectedCellViews[] selectedCellViews,
             TextView selectedSummaryView,
             LinkedHashMap<String, CandidateRowViews> candidateRows) {
-        LinearLayout card = activity.card(activity.featureSurfaceColor(), activity.featureStrokeColor(), 24);
+        LinearLayout card = activity.card(activity.featureSurfaceColor(), 24);
         activity.addProfileSectionHeader(
                 card,
                 "可选快捷启动",

@@ -11,21 +11,22 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
-        android:minHeight="64dp"
+        android:minHeight="56dp"
         android:orientation="horizontal"
         android:paddingStart="16dp"
-        android:paddingTop="8dp"
+        android:paddingTop="4dp"
         android:paddingEnd="16dp"
-        android:paddingBottom="8dp">
+        android:paddingBottom="4dp">
 
-        <TextView
+        <ImageButton
             android:id="@+id/back_button"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
             android:gravity="center"
-            android:text="‹"
-            android:textColor="@color/flyme_primary"
-            android:textSize="28sp"
+            android:src="@drawable/ic_settings_back"
+            android:padding="12dp"
+            android:contentDescription="返回"
+            android:layout_marginEnd="8dp"
             android:visibility="gone" />
 
         <LinearLayout
@@ -54,12 +55,12 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:textColor="@color/flyme_text"
-                    android:textSize="22sp" />
+                    android:textSize="20sp" />
 
                 <TextView
                     android:id="@+id/top_bar_subtitle"
-                    android:layout_width="32dp"
-                    android:layout_height="32dp"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
                     android:layout_marginStart="8dp"
                     android:gravity="center"
                     android:text="?"
@@ -69,14 +70,14 @@
             </LinearLayout>
         </LinearLayout>
 
-        <TextView
+        <ImageButton
             android:id="@+id/more_button"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
             android:gravity="center"
-            android:text="⋯"
-            android:textColor="@color/flyme_primary"
-            android:textSize="24sp" />
+            android:src="@drawable/ic_settings_more"
+            android:padding="12dp"
+            android:contentDescription="更多选项" />
     </LinearLayout>
 
     <FrameLayout

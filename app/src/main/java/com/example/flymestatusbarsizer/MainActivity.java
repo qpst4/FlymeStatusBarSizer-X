@@ -8,8 +8,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
-import android.content.res.Resources;
 import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.RippleDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.StateListDrawable;
 import android.net.Uri;
@@ -24,11 +25,14 @@ import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.view.inputmethod.InputMethodManager;
 import android.window.OnBackInvokedCallback;
 import android.window.OnBackInvokedDispatcher;
 import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.PopupMenu;
 import android.widget.SeekBar;
@@ -94,19 +98,6 @@ public class MainActivity extends Activity {
             SettingsStore.KEY_IME_CONTROL_BAR_Y_OFFSET_DP
     };
 
-    private static final int FALLBACK_BACKGROUND = Color.rgb(253, 247, 255);
-    private static final int FALLBACK_SURFACE = Color.WHITE;
-    private static final int FALLBACK_SURFACE_SOFT = Color.rgb(248, 242, 250);
-    private static final int FALLBACK_SURFACE_STRONG = Color.rgb(230, 224, 233);
-    private static final int FALLBACK_FEATURE_SURFACE = Color.rgb(234, 221, 255);
-    private static final int FALLBACK_FEATURE_STROKE = Color.rgb(103, 80, 164);
-    private static final int FALLBACK_TEXT = Color.rgb(29, 27, 32);
-    private static final int FALLBACK_SUBTEXT = Color.rgb(73, 69, 79);
-    private static final int FALLBACK_PRIMARY = Color.rgb(103, 80, 164);
-    private static final int FALLBACK_PRIMARY_CONTAINER = Color.rgb(234, 221, 255);
-    private static final int FALLBACK_PRIMARY_DEEP = Color.rgb(79, 55, 138);
-    private static final int FALLBACK_STROKE = Color.rgb(203, 196, 208);
-
     private SharedPreferences prefs;
     private int colorBackground;
     private int colorSurface;
@@ -124,8 +115,8 @@ public class MainActivity extends Activity {
     private final HashMap<String, Integer> pendingIntSliderValues = new HashMap<>();
     private final HashMap<String, Integer> pendingPositionOffsetValues = new HashMap<>();
     private LinearLayout topBar;
-    private TextView backButtonView;
-    private TextView moreButtonView;
+    private ImageButton backButtonView;
+    private ImageButton moreButtonView;
     private TextView topBarEyebrowView;
     private TextView topBarTitleView;
     private TextView topBarSubtitleView;
@@ -183,7 +174,7 @@ public class MainActivity extends Activity {
         initPalette();
         configureSystemBars();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            getWindow().setDecorFitsSystemWindows(true);
+            getWindow().setDecorFitsSystemWindows(false);
         }
         setContentView(R.layout.activity_main);
         bindHostViews();
@@ -223,6 +214,12 @@ public class MainActivity extends Activity {
         View mainRoot = findViewById(R.id.main_root);
         if (mainRoot != null) {
             mainRoot.setBackgroundColor(colorBackground);
+            mainRoot.setOnApplyWindowInsetsListener((view, insets) -> {
+                view.setPadding(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(),
+                        insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom());
+                return insets;
+            });
+            mainRoot.requestApplyInsets();
         }
         topBar = findViewById(R.id.top_bar);
         backButtonView = findViewById(R.id.back_button);
@@ -233,24 +230,18 @@ public class MainActivity extends Activity {
         pageHostView = findViewById(R.id.page_host);
         if (topBar != null) {
             topBar.setBackgroundColor(colorBackground);
-            int topInset = getStatusBarInset();
-            topBar.setPadding(
-                    topBar.getPaddingLeft(),
-                    dp(8) + topInset,
-                    topBar.getPaddingRight(),
-                    topBar.getPaddingBottom());
         }
         if (pageHostView != null) {
             pageHostView.setBackgroundColor(colorBackground);
         }
         if (backButtonView != null) {
-            backButtonView.setBackground(roundRect(colorSurfaceSoft, 999));
+            backButtonView.setBackground(roundRect(Color.TRANSPARENT, 24));
         }
         if (moreButtonView != null) {
-            moreButtonView.setBackground(roundRect(colorSurfaceSoft, 999));
+            moreButtonView.setBackground(roundRect(Color.TRANSPARENT, 24));
         }
         if (topBarSubtitleView != null) {
-            topBarSubtitleView.setBackground(roundRect(colorSurfaceSoft, 999));
+            topBarSubtitleView.setBackground(roundRect(Color.TRANSPARENT, 24));
         }
         setTapClickListener(backButtonView, v -> onBackPressed());
         setTapClickListener(moreButtonView, this::showMoreMenu);
@@ -341,7 +332,8 @@ public class MainActivity extends Activity {
         }
         if (topBarTitleView != null) {
             topBarTitleView.setText(page.title);
-            topBarTitleView.setTextSize(22f);
+            topBarTitleView.setTextSize(20f);
+            topBarTitleView.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         }
         if (topBarSubtitleView != null) {
             if (TextUtils.isEmpty(page.subtitle)) {
@@ -475,7 +467,7 @@ public class MainActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setMinimumHeight(dp(44));
+        row.setMinimumHeight(dp(48));
 
         LinearLayout textColumn = new LinearLayout(this);
         textColumn.setOrientation(LinearLayout.VERTICAL);
@@ -502,15 +494,21 @@ public class MainActivity extends Activity {
         row.addView(textColumn, new LinearLayout.LayoutParams(0,
                 LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         addHelpButton(row, titleText, subtitleText);
+        toggle.setContentDescription(titleText);
         row.addView(toggle, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT));
+        setTapClickListener(row, v -> {
+            if (toggle.isEnabled()) {
+                toggle.setChecked(!toggle.isChecked());
+            }
+        });
         root.addView(row, matchWrap());
         return toggle;
     }
 
     LinearLayout buildBatteryHollowOptions() {
-        LinearLayout card = card(colorSurfaceSoft, colorStroke, 22);
+        LinearLayout card = card(colorSurfaceSoft, 22);
         TextView title = new TextView(this);
         title.setText("镂空电池");
         title.setTextColor(colorPrimary);
@@ -556,12 +554,13 @@ public class MainActivity extends Activity {
         TextView valueView = new TextView(this);
         valueView.setTextColor(colorPrimary);
         valueView.setTextSize(14);
-        valueView.setPadding(dp(12), 0, 0, 0);
         int current = readIntSetting(key, defaultValue);
         int clamped = Math.max(min, Math.min(max, current));
         valueView.setText(tenthDp ? formatDpValue(clamped, decimalScale) : formatValue(clamped, suffix));
-        valueView.setPadding(dp(12), dp(6), dp(12), dp(6));
-        valueView.setBackground(roundRect(colorSurfaceSoft, 999));
+        valueView.setPadding(dp(10), dp(4), dp(10), dp(4));
+        valueView.setBackground(roundRect(colorSurfaceSoft, 16));
+        valueView.setMinHeight(dp(36));
+        valueView.setGravity(Gravity.CENTER);
         header.addView(valueView, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT));
@@ -617,7 +616,8 @@ public class MainActivity extends Activity {
         }
 
         row.addView(header, matchWrap());
-        row.addView(seekBar, matchWrapWithTop(4));
+        row.addView(seekBar, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(40)));
         root.addView(row, matchWrap());
     }
 
@@ -653,8 +653,10 @@ public class MainActivity extends Activity {
         TextView valueView = new TextView(this);
         valueView.setTextColor(colorPrimary);
         valueView.setTextSize(14);
-        valueView.setPadding(dp(12), dp(6), dp(12), dp(6));
-        valueView.setBackground(roundRect(colorSurfaceSoft, 999));
+        valueView.setPadding(dp(10), dp(4), dp(10), dp(4));
+        valueView.setBackground(roundRect(colorSurfaceSoft, 16));
+        valueView.setMinHeight(dp(36));
+        valueView.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams valueLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -707,7 +709,8 @@ public class MainActivity extends Activity {
 
         positionTuningSliderBindings.add(binding);
         row.addView(header, matchWrap());
-        row.addView(seekBar, matchWrapWithTop(4));
+        row.addView(seekBar, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(40)));
         root.addView(row, matchWrap());
     }
 
@@ -746,8 +749,10 @@ public class MainActivity extends Activity {
         TextView valueView = new TextView(this);
         valueView.setTextColor(colorPrimary);
         valueView.setTextSize(14);
-        valueView.setPadding(dp(12), dp(6), dp(12), dp(6));
-        valueView.setBackground(roundRect(colorSurfaceSoft, 999));
+        valueView.setPadding(dp(10), dp(4), dp(10), dp(4));
+        valueView.setBackground(roundRect(colorSurfaceSoft, 16));
+        valueView.setMinHeight(dp(36));
+        valueView.setGravity(Gravity.CENTER);
         header.addView(valueView, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT));
@@ -812,7 +817,8 @@ public class MainActivity extends Activity {
         header.addView(applyButton, applyLp);
 
         row.addView(header, matchWrap());
-        row.addView(seekBar, matchWrapWithTop(4));
+        row.addView(seekBar, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(40)));
         root.addView(row, matchWrap());
     }
 
@@ -846,8 +852,10 @@ public class MainActivity extends Activity {
         TextView valueView = new TextView(this);
         valueView.setTextColor(colorPrimary);
         valueView.setTextSize(14);
-        valueView.setPadding(dp(12), dp(6), dp(12), dp(6));
-        valueView.setBackground(roundRect(colorSurfaceSoft, 999));
+        valueView.setPadding(dp(10), dp(4), dp(10), dp(4));
+        valueView.setBackground(roundRect(colorSurfaceSoft, 16));
+        valueView.setMinHeight(dp(36));
+        valueView.setGravity(Gravity.CENTER);
         int clamped = getPendingIntSliderValue(key, defaultValue, min, max);
         valueView.setText(formatSliderDisplayValue(clamped, suffix, insetValue));
         LinearLayout.LayoutParams valueLp = new LinearLayout.LayoutParams(
@@ -901,7 +909,8 @@ public class MainActivity extends Activity {
         header.addView(applyButton, applyLp);
 
         row.addView(header, matchWrap());
-        row.addView(seekBar, matchWrapWithTop(4));
+        row.addView(seekBar, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(40)));
         root.addView(row, matchWrap());
     }
 
@@ -931,8 +940,10 @@ public class MainActivity extends Activity {
         TextView valueView = new TextView(this);
         valueView.setTextColor(colorPrimary);
         valueView.setTextSize(14);
-        valueView.setPadding(dp(12), dp(6), dp(12), dp(6));
-        valueView.setBackground(roundRect(colorSurfaceSoft, 999));
+        valueView.setPadding(dp(10), dp(4), dp(10), dp(4));
+        valueView.setBackground(roundRect(colorSurfaceSoft, 16));
+        valueView.setMinHeight(dp(36));
+        valueView.setGravity(Gravity.CENTER);
         int clamped = SettingsStore.normalizeLauncherStackParameter(
                 key,
                 readIntSetting(key, defaultValue));
@@ -992,7 +1003,8 @@ public class MainActivity extends Activity {
         });
 
         row.addView(header, matchWrap());
-        row.addView(seekBar, matchWrapWithTop(4));
+        row.addView(seekBar, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(40)));
         root.addView(row, matchWrap());
     }
 
@@ -1011,26 +1023,31 @@ public class MainActivity extends Activity {
             String key, String defaultValue, String emptyLabel, String inputHint, boolean plainTextInput,
             String neutralButtonText, String neutralValue) {
         LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setOrientation(LinearLayout.VERTICAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setMinimumHeight(dp(44));
+        row.setMinimumHeight(dp(48));
 
         LinearLayout textColumn = new LinearLayout(this);
-        textColumn.setOrientation(LinearLayout.VERTICAL);
+        textColumn.setOrientation(LinearLayout.HORIZONTAL);
+        textColumn.setGravity(Gravity.CENTER_VERTICAL);
 
         TextView title = new TextView(this);
         title.setText(titleText);
         title.setTextColor(colorText);
         title.setTextSize(16);
-        textColumn.addView(title, matchWrap());
+        textColumn.addView(title, new LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        addHelpButton(textColumn, titleText, subtitleText);
 
         TextView valueView = new TextView(this);
         valueView.setTextColor(colorPrimary);
         valueView.setTextSize(13);
-        valueView.setPadding(dp(12), dp(6), dp(12), dp(6));
-        valueView.setBackground(roundRect(colorSurfaceSoft, 999));
-        valueView.setMaxWidth(dp(180));
-        valueView.setSingleLine(false);
+        valueView.setPadding(dp(10), dp(4), dp(10), dp(4));
+        valueView.setBackground(roundRect(colorSurfaceSoft, 16));
+        valueView.setMinHeight(dp(36));
+        valueView.setGravity(Gravity.CENTER_VERTICAL);
+        valueView.setMaxLines(2);
+        valueView.setEllipsize(TextUtils.TruncateAt.END);
         updateTextSettingLabel(valueView, readStringSetting(key, defaultValue), emptyLabel);
         setTapClickListener(valueView, v -> showTextInputDialog(
                 titleText,
@@ -1045,12 +1062,8 @@ public class MainActivity extends Activity {
                     updateTextSettingLabel(valueView, value, emptyLabel);
                 }));
 
-        row.addView(textColumn, new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        addHelpButton(row, titleText, subtitleText);
-        row.addView(valueView, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT));
+        row.addView(textColumn, matchWrap());
+        row.addView(valueView, matchWrapWithTop(4));
         root.addView(row, matchWrap());
         return valueView;
     }
@@ -1060,7 +1073,7 @@ public class MainActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setMinimumHeight(dp(44));
+        row.setMinimumHeight(dp(48));
 
         LinearLayout textColumn = new LinearLayout(this);
         textColumn.setOrientation(LinearLayout.VERTICAL);
@@ -1074,8 +1087,10 @@ public class MainActivity extends Activity {
         TextView valueView = new TextView(this);
         valueView.setTextColor(colorPrimary);
         valueView.setTextSize(13);
-        valueView.setPadding(dp(12), dp(6), dp(12), dp(6));
-        valueView.setBackground(roundRect(colorSurfaceSoft, 999));
+        valueView.setPadding(dp(10), dp(4), dp(10), dp(4));
+        valueView.setBackground(roundRect(colorSurfaceSoft, 16));
+        valueView.setMinHeight(dp(36));
+        valueView.setGravity(Gravity.CENTER);
         int currentValue = readIntSetting(key, defaultValue);
         valueView.setText(resolveChoiceLabel(currentValue, values, labels));
         setTapClickListener(valueView, v -> showChoiceMenu(v, key, defaultValue, values, labels, valueView));
@@ -1784,6 +1799,12 @@ public class MainActivity extends Activity {
             return;
         }
         view.setHapticFeedbackEnabled(true);
+        view.setFocusable(true);
+        view.setClipToOutline(true);
+        if (!(view.getForeground() instanceof RippleDrawable)) {
+            view.setForeground(new RippleDrawable(
+                    ColorStateList.valueOf(0x246750A4), null, roundRect(Color.WHITE, 0)));
+        }
         view.setOnClickListener(v -> {
             performTapHaptic(v);
             listener.onClick(v);
@@ -1798,6 +1819,7 @@ public class MainActivity extends Activity {
         toggle.setSplitTrack(false);
         toggle.setSwitchMinWidth(dp(52));
         toggle.setMinWidth(dp(52));
+        toggle.setMinHeight(dp(48));
         toggle.setTrackTintList(null);
         toggle.setThumbTintList(null);
         toggle.setTrackDrawable(buildSwitchTrackDrawable());
@@ -1821,13 +1843,15 @@ public class MainActivity extends Activity {
             return;
         }
         if (dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawable(roundRect(colorSurface, 24));
+            dialog.getWindow().setBackgroundDrawable(roundRect(colorSurfaceSoft, 28));
         }
         TextView positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
         TextView negative = dialog.getButton(AlertDialog.BUTTON_NEGATIVE);
         TextView neutral = dialog.getButton(AlertDialog.BUTTON_NEUTRAL);
         if (positive != null) {
-            positive.setTextColor(colorPrimary);
+            positive.setTextColor(Color.WHITE);
+            positive.setBackground(roundRect(colorPrimary, 16));
+            positive.setMinHeight(dp(48));
         }
         if (negative != null) {
             negative.setTextColor(colorPrimary);
@@ -2021,15 +2045,7 @@ public class MainActivity extends Activity {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(16), dp(12), dp(16), dp(12));
-        card.setBackground(roundRect(color, Math.min(radiusDp, 16)));
-        return card;
-    }
-
-    LinearLayout card(int color, int strokeColor, int radiusDp) {
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(16), dp(12), dp(16), dp(12));
-        card.setBackground(outlinedRect(color, strokeColor, 1, Math.min(radiusDp, 16)));
+        card.setBackground(roundRect(color, Math.min(radiusDp, 24)));
         return card;
     }
 
@@ -2245,23 +2261,54 @@ public class MainActivity extends Activity {
     }
 
     View buildSectionCard(String titleText, String subtitleText, View content) {
-        LinearLayout card = card(colorSurface, colorStroke, 16);
+        LinearLayout card = card(colorSurface, 24);
+        card.setPadding(0, 0, 0, 0);
+        card.setClipToOutline(true);
 
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(dp(16), dp(12), dp(16), dp(12));
+        header.setMinimumHeight(dp(64));
 
         TextView title = new TextView(this);
         title.setText(titleText);
         title.setTextColor(colorText);
         title.setTextSize(18);
+        title.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         header.addView(title, new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         addHelpButton(header, titleText, subtitleText);
         card.addView(header, matchWrap());
 
         if (content != null) {
-            card.addView(content, matchWrapWithTop(10));
+            ImageView arrow = new ImageView(this);
+            arrow.setImageResource(R.drawable.ic_section_expand);
+            arrow.setRotation(-90f);
+            arrow.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            header.addView(arrow, new LinearLayout.LayoutParams(dp(24), dp(24)));
+            content.setVisibility(View.GONE);
+            LinearLayout.LayoutParams contentLp = matchWrapWithTop(4);
+            contentLp.leftMargin = dp(16);
+            contentLp.rightMargin = dp(16);
+            contentLp.bottomMargin = dp(12);
+            card.addView(content, contentLp);
+            header.setContentDescription(titleText + "，已收起，点击展开");
+            setTapClickListener(header, v -> {
+                boolean expand = content.getVisibility() != View.VISIBLE;
+                View focused = content.findFocus();
+                if (!expand && focused != null) {
+                    focused.clearFocus();
+                    getSystemService(InputMethodManager.class)
+                            .hideSoftInputFromWindow(content.getWindowToken(), 0);
+                }
+                content.setVisibility(expand ? View.VISIBLE : View.GONE);
+                header.setPadding(dp(16), dp(12), dp(16), expand ? 0 : dp(12));
+                header.setMinimumHeight(dp(expand ? 52 : 64));
+                arrow.setRotation(expand ? 0f : -90f);
+                header.setContentDescription(titleText + (expand
+                        ? "，已展开，点击收起" : "，已收起，点击展开"));
+            });
         }
         return card;
     }
@@ -2301,18 +2348,18 @@ public class MainActivity extends Activity {
     }
 
     private void initPalette() {
-        colorBackground = FALLBACK_BACKGROUND;
-        colorSurface = FALLBACK_SURFACE;
-        colorSurfaceSoft = FALLBACK_SURFACE_SOFT;
-        colorSurfaceStrong = FALLBACK_SURFACE_STRONG;
-        colorFeatureSurface = FALLBACK_FEATURE_SURFACE;
-        colorFeatureStroke = FALLBACK_FEATURE_STROKE;
-        colorText = FALLBACK_TEXT;
-        colorSubtext = FALLBACK_SUBTEXT;
-        colorPrimary = FALLBACK_PRIMARY;
-        colorPrimaryContainer = FALLBACK_PRIMARY_CONTAINER;
-        colorPrimaryDeep = FALLBACK_PRIMARY_DEEP;
-        colorStroke = FALLBACK_STROKE;
+        colorBackground = getColor(R.color.flyme_background);
+        colorSurface = getColor(R.color.flyme_surface);
+        colorSurfaceSoft = getColor(R.color.flyme_surface_low);
+        colorSurfaceStrong = getColor(R.color.flyme_surface_container_highest);
+        colorFeatureSurface = getColor(R.color.flyme_primary_container);
+        colorFeatureStroke = getColor(R.color.flyme_primary);
+        colorText = getColor(R.color.flyme_text);
+        colorSubtext = getColor(R.color.flyme_subtext);
+        colorPrimary = getColor(R.color.flyme_primary);
+        colorPrimaryContainer = getColor(R.color.flyme_primary_container);
+        colorPrimaryDeep = getColor(R.color.flyme_primary_deep);
+        colorStroke = getColor(R.color.flyme_outline_variant);
     }
 
     private void configureSystemBars() {
@@ -2324,7 +2371,8 @@ public class MainActivity extends Activity {
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             int flags = getWindow().getDecorView().getSystemUiVisibility();
-            flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+            flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
             }
@@ -2350,21 +2398,6 @@ public class MainActivity extends Activity {
 
     int dp(int value) {
         return settingsUiFactory.dp(value);
-    }
-
-    int statusBarInset() {
-        return getStatusBarInset();
-    }
-
-    private int getStatusBarInset() {
-        int resId = getResources().getIdentifier("status_bar_height", "dimen", "android");
-        if (resId != 0) {
-            try {
-                return getResources().getDimensionPixelSize(resId);
-            } catch (Resources.NotFoundException ignored) {
-            }
-        }
-        return dp(24);
     }
 
     private interface IntValueConsumer {

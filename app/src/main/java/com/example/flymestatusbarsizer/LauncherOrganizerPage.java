@@ -87,8 +87,6 @@ final class LauncherOrganizerPage {
         model = input(settings, "模型名称", "填写服务商提供的模型名称", prefs.getString("model", ""), false);
         key = input(settings, "API Key", "仅保存在本机模块内", prefs.getString("key", ""), true);
         LinearLayout classification = column();
-        TextView promptToggle = actionButton("展开提示词 ▾");
-        classification.addView(promptToggle, PageViewUtils.matchWrap());
         promptStatus = label(classification, "修改后保存，用于下次生成分类。", 13);
         promptStatus.setTextColor(activity.subtextColor());
         LinearLayout promptEditor = column();
@@ -110,19 +108,7 @@ final class LauncherOrganizerPage {
         activity.setTapClickListener(resetPrompt, view -> corePrompt.setText(DEFAULT_CORE_PROMPT));
         promptEditor.addView(resetPrompt, activity.matchWrapWithTop(8));
         controls.add(resetPrompt);
-        promptEditor.setVisibility(View.GONE);
         classification.addView(promptEditor, PageViewUtils.matchWrap());
-        activity.setTapClickListener(promptToggle, view -> {
-            boolean expand = promptEditor.getVisibility() != View.VISIBLE;
-            if (!expand) {
-                corePrompt.clearFocus();
-                customPrompt.clearFocus();
-                activity.getSystemService(android.view.inputmethod.InputMethodManager.class)
-                        .hideSoftInputFromWindow(promptEditor.getWindowToken(), 0);
-            }
-            promptEditor.setVisibility(expand ? View.VISIBLE : View.GONE);
-            promptToggle.setText(expand ? "收起提示词 ▴" : "展开提示词 ▾");
-        });
         configStatus = label(settings, "接口信息自动保存在本机，下次打开自动填入。", 13);
         button(settings, "保存接口", () -> {
             boolean saved = configEditor().commit();
@@ -148,7 +134,7 @@ final class LauncherOrganizerPage {
         corePrompt.addTextChangedListener(promptChanges);
         customPrompt.addTextChangedListener(promptChanges);
         root.addView(activity.buildSectionCard("AI 接口", "使用兼容 Chat Completions 的接口。生成分类时会发送应用名称和包名。", settings), PageViewUtils.matchWrap());
-        root.addView(activity.buildSectionCard("提示词", "展开后编辑并保存。收起保留当前编辑内容，恢复默认只重置核心提示词。", classification), PageViewUtils.matchWrap());
+        root.addView(activity.buildSectionCard("提示词", "展开后编辑并保存。收起保留当前编辑内容，恢复默认只重置核心提示词。", classification), PageViewUtils.matchWrapWithTop(activity, 8));
         LinearLayout actions = column();
         button(actions, "读取桌面", () -> run(() -> {
             desktop = new JSONObject(command("read", null));
@@ -165,9 +151,9 @@ final class LauncherOrganizerPage {
         actions.addView(progress, activity.matchWrapWithTop(8));
         liveOutput = label(actions, "", 14);
         liveOutput.setVisibility(View.GONE);
-        root.addView(activity.buildSectionCard("操作", "保留底栏、小组件和特殊快捷方式。单应用分类和未分类应用直接放在桌面。", actions), PageViewUtils.matchWrap());
+        root.addView(activity.buildSectionCard("操作", "保留底栏、小组件和特殊快捷方式。单应用分类和未分类应用直接放在桌面。", actions), PageViewUtils.matchWrapWithTop(activity, 8));
         preview = column();
-        root.addView(activity.buildSectionCard("分类预览", "文件夹默认按应用数量自动选尺寸，也可手动选择。点击应用可调整归属。", preview), PageViewUtils.matchWrap());
+        root.addView(activity.buildSectionCard("分类预览", "文件夹默认按应用数量自动选尺寸，也可手动选择。点击应用可调整归属。", preview), PageViewUtils.matchWrapWithTop(activity, 8));
         try {
             String saved = prefs.getString("preview", "");
             if (!saved.isEmpty()) {

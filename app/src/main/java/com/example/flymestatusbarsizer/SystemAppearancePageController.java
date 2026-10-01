@@ -13,6 +13,6 @@ final class SystemAppearancePageController {
                 "按应用用途生成文件夹，支持预览和撤销。保留底栏、小组件及特殊快捷方式。",
                 "打开", activity::showLauncherOrganizerPage);
         root.addView(activity.buildSectionCard("桌面整理", "", organizer), PageViewUtils.matchWrap());
-        root.addView(activity.createSystemAppearanceSettingsCard(), PageViewUtils.matchWrap());
+        root.addView(activity.createSystemAppearanceSettingsCard(), PageViewUtils.matchWrapWithTop(activity, 8));
     }
 }
