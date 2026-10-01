@@ -146,9 +146,12 @@ public final class ClockHooks {
             Method method = TextView.class.getDeclaredMethod("setTextColor", parameterType);
             method.setAccessible(true);
             module.intercept(method, chain -> {
-                Object result = chain.proceed();
                 Object target = chain.getThisObject();
-                if (target instanceof TextView && isPrimaryStatusBarClockView((TextView) target)) {
+                TextView clock = target instanceof TextView && isPrimaryStatusBarClockView((TextView) target)
+                        ? (TextView) target : null;
+                int oldColor = clock == null ? 0 : clock.getCurrentTextColor();
+                Object result = chain.proceed();
+                if (clock != null && oldColor != clock.getCurrentTextColor()) {
                     FlymeStatusBarSizer.refreshSignalIconsForClockColorCompat();
                 }
                 return result;

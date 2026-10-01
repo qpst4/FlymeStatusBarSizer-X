@@ -19,6 +19,8 @@ import android.graphics.Rect;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.LayerDrawable;
+import android.os.Handler;
+import android.os.Looper;
 import android.service.notification.StatusBarNotification;
 import android.text.TextUtils;
 import android.view.View;
@@ -93,7 +95,7 @@ public final class NotificationHooks {
             new WeakHashMap<>();
     private static final WeakHashMap<TextView, Boolean> NOTIFICATION_TEXT_FOLLOW_VIEWS =
             new WeakHashMap<>();
-    private static final WeakHashMap<View, Boolean> NOTIFICATION_TEXT_FOLLOW_ROOTS =
+    private static final WeakHashMap<View, Integer> NOTIFICATION_TEXT_FOLLOW_ROOTS =
             new WeakHashMap<>();
     private static final HashMap<String, Boolean> NOTIFICATION_APP_ICON_ELIGIBILITY_CACHE =
             new HashMap<>();
@@ -110,6 +112,13 @@ public final class NotificationHooks {
                 }
             };
     private static boolean notificationTextFollowRefreshScheduled;
+    private static final Handler NOTIFICATION_TEXT_HANDLER = new Handler(Looper.getMainLooper());
+    private static final Runnable NOTIFICATION_TEXT_REFRESH = () -> {
+        synchronized (NOTIFICATION_TEXT_FOLLOW_ROOTS) {
+            notificationTextFollowRefreshScheduled = false;
+        }
+        refreshNotificationTextFollowStatusBar();
+    };
 
     private NotificationHooks() {
     }
@@ -1097,17 +1106,19 @@ public final class NotificationHooks {
         }
         rememberNotificationTextFollowRoot(root, enabled);
         Integer textColor = enabled ? resolveNotificationTextTintColor(root) : null;
-        if (textColor == null) {
-            updateNotificationTextColors(root, false, 0);
-            return;
+        // Content updates still traverse new children even when the requested color is unchanged.
+        updateNotificationTextColors(root, textColor != null, textColor == null ? 0 : textColor);
+        if (enabled) {
+            synchronized (NOTIFICATION_TEXT_FOLLOW_ROOTS) {
+                NOTIFICATION_TEXT_FOLLOW_ROOTS.put(root, textColor);
+            }
         }
-        updateNotificationTextColors(root, true, textColor);
     }
 
     private static void rememberNotificationTextFollowRoot(View root, boolean enabled) {
         synchronized (NOTIFICATION_TEXT_FOLLOW_ROOTS) {
             if (enabled) {
-                NOTIFICATION_TEXT_FOLLOW_ROOTS.put(root, Boolean.TRUE);
+                NOTIFICATION_TEXT_FOLLOW_ROOTS.putIfAbsent(root, null);
             } else {
                 NOTIFICATION_TEXT_FOLLOW_ROOTS.remove(root);
             }
@@ -1115,28 +1126,14 @@ public final class NotificationHooks {
     }
 
     private static void scheduleNotificationTextFollowStatusBarRefresh(Object anchor) {
-        View view = anchor instanceof View ? (View) anchor : null;
         synchronized (NOTIFICATION_TEXT_FOLLOW_ROOTS) {
             if (notificationTextFollowRefreshScheduled) {
                 return;
             }
             notificationTextFollowRefreshScheduled = true;
         }
-        Runnable runnable = () -> {
-            synchronized (NOTIFICATION_TEXT_FOLLOW_ROOTS) {
-                notificationTextFollowRefreshScheduled = false;
-            }
-            refreshNotificationTextFollowStatusBar();
-        };
-        if (view != null) {
-            try {
-                if (view.post(runnable)) {
-                    return;
-                }
-            } catch (Throwable ignored) {
-            }
-        }
-        runnable.run();
+        // Coalesce receiver/expansion callbacks; never walk notification trees inside them.
+        NOTIFICATION_TEXT_HANDLER.post(NOTIFICATION_TEXT_REFRESH);
     }
 
     private static void refreshNotificationTextFollowStatusBar() {
@@ -1157,11 +1154,14 @@ public final class NotificationHooks {
                 continue;
             }
             Integer textColor = resolveNotificationTextTintColor(root);
-            if (textColor == null) {
-                updateNotificationTextColors(root, false, 0);
-                continue;
+            synchronized (NOTIFICATION_TEXT_FOLLOW_ROOTS) {
+                Integer previous = NOTIFICATION_TEXT_FOLLOW_ROOTS.get(root);
+                if (textColor != null && textColor.equals(previous)) continue;
             }
-            updateNotificationTextColors(root, true, textColor);
+            updateNotificationTextColors(root, textColor != null, textColor == null ? 0 : textColor);
+            synchronized (NOTIFICATION_TEXT_FOLLOW_ROOTS) {
+                NOTIFICATION_TEXT_FOLLOW_ROOTS.put(root, textColor);
+            }
         }
         refreshNotificationTextFollowViews();
     }

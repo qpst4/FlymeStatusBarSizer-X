@@ -48,7 +48,7 @@ final class StatusBarTintHooks {
     private static int launcherScene = -1, sentScene = -2, lastScene = -2;
     private static boolean launcherReceiverRegistered, launcherVisible;
     private static boolean shadeExpanded, centerExpanded;
-    private static boolean replaying;
+    private static boolean replaying, forceRefresh;
     // Keep native inputs separate; dispatcher fields always hold the effective scene color.
     private static final ArgbEvaluator ARGB = new ArgbEvaluator();
     private static final ArrayList<Rect> EMPTY_AREAS = new ArrayList<>();
@@ -56,7 +56,7 @@ final class StatusBarTintHooks {
     private static float nativeIntensity;
     private static int nativeTint = Color.WHITE, nativeContrast = Color.BLACK;
     private static ArrayList<Rect> appliedAreas, panelNativeAreas;
-    private static int appliedScene = -2, appliedTint, appliedContrast, panelNativeTint;
+    private static int appliedTint, appliedContrast, panelNativeTint;
     private static float appliedIntensity;
 
     private StatusBarTintHooks() {}
@@ -253,18 +253,23 @@ final class StatusBarTintHooks {
         int current = scene();
         if (current == lastScene) return;
         lastScene = current;
-        refresh();
+        MAIN.removeCallbacks(UPDATE);
+        MAIN.post(UPDATE);
     }
 
     static void refresh() {
+        forceRefresh = true;
         MAIN.removeCallbacks(UPDATE);
         MAIN.post(UPDATE);
     }
 
     private static void updateColors() {
-        // Explicit scene/config refreshes must also recolor rebuilt views with the same tint.
-        PANEL_TINTS.replaceAll((target, tint) -> null);
-        applyDispatcherTint(true);
+        boolean force = forceRefresh;
+        forceRefresh = false;
+        // Rebuilt views need a forced refresh; opening a panel does not invalidate their colors.
+        if (force) PANEL_TINTS.replaceAll((target, tint) -> null);
+        applyDispatcherTint(force);
+        int currentScene = scene();
         replaying = true;
         try {
             for (Map.Entry<Object, Integer> entry : new ArrayList<>(PANEL_COLORS.entrySet())) {
@@ -272,6 +277,7 @@ final class StatusBarTintHooks {
                         new Class<?>[]{int.class}, entry.getValue());
             }
             for (Map.Entry<View, WeakReference<Object>> entry : new ArrayList<>(LOCK_VIEWS.entrySet())) {
+                if (!force && currentScene != 4 && !entry.getKey().isShown()) continue;
                 Object manager = entry.getValue().get();
                 if (manager != null) ReflectUtils.invokeMethod(entry.getKey(), "updateIconsAndTextColors",
                         new Class<?>[]{manager.getClass()}, manager);
@@ -300,7 +306,7 @@ final class StatusBarTintHooks {
         boolean nativeChanged = panelNativeTint != nativeTint || panelNativeAreas != nativeAreas;
         panelNativeTint = nativeTint;
         panelNativeAreas = nativeAreas;
-        if (!force && appliedScene == currentScene && appliedAreas == areas
+        if (!force && appliedAreas == areas
                 && appliedIntensity == intensity && appliedTint == tint && appliedContrast == contrast) {
             // The fixed output did not change. Only panels need the updated native colors.
             if (nativeChanged) {
@@ -312,7 +318,6 @@ final class StatusBarTintHooks {
             }
             return;
         }
-        appliedScene = currentScene;
         appliedAreas = areas;
         appliedIntensity = intensity;
         appliedTint = tint;

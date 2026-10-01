@@ -6861,7 +6861,13 @@ public class FlymeStatusBarSizer extends XposedModule {
     }
 
     public static void refreshSignalIconsForClockColorCompat() {
-        scheduleTrackedSignalIconRefresh();
+        // Tint changes need a redraw, not SIM queries, signal binding or geometry recalculation.
+        for (View view : new ArrayList<>(TRACKED_STATUS_BAR_ICON_VIEWS.keySet())) {
+            if (view instanceof ImageView) {
+                Drawable drawable = ((ImageView) view).getDrawable();
+                if (drawable instanceof SignalIconDrawable) drawable.invalidateSelf();
+            }
+        }
     }
 
     private static void scheduleTrackedSignalIconRefreshForSignalSubId(int subId) {
