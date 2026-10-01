@@ -26,6 +26,7 @@ final class SettingsStore {
     static final int CAMERA_CIRCLE_BATTERY_OFFSET_MAX_TENTH_DP = 3000;
 
     static final String KEY_ENABLED = "enabled";
+    static final String KEY_STATUS_BAR_TINT_ENABLED = "status_bar_tint_enabled";
     static final String KEY_BATTERY_CODE_DRAW_ENABLED = "battery_code_draw_enabled";
     static final String KEY_CAMERA_CIRCLE_BATTERY_ENABLED = "camera_circle_battery_enabled";
     static final String KEY_CAMERA_CIRCLE_BATTERY_HIDE_ICON_ENABLED =
@@ -294,6 +295,7 @@ final class SettingsStore {
     static final String KEY_TELEPHONY_DEBUG_SLOT2_NETWORK_PROFILE = "telephony_debug_slot2_network_profile";
     static final String KEY_TELEPHONY_DEBUG_SLOT2_SIGNAL_LEVEL = "telephony_debug_slot2_signal_level";
     static final boolean DEFAULT_ENABLED = true;
+    static final boolean DEFAULT_STATUS_BAR_TINT_ENABLED = true;
     static final boolean DEFAULT_BATTERY_CODE_DRAW_ENABLED = true;
     static final boolean DEFAULT_CAMERA_CIRCLE_BATTERY_ENABLED = false;
     static final boolean DEFAULT_CAMERA_CIRCLE_BATTERY_HIDE_ICON_ENABLED = false;
@@ -604,6 +606,7 @@ final class SettingsStore {
 
     static final String[] BOOLEAN_KEYS = {
             KEY_ENABLED,
+            KEY_STATUS_BAR_TINT_ENABLED,
             KEY_BATTERY_CODE_DRAW_ENABLED,
             KEY_CAMERA_CIRCLE_BATTERY_ENABLED,
             KEY_CAMERA_CIRCLE_BATTERY_HIDE_ICON_ENABLED,
@@ -1059,6 +1062,8 @@ final class SettingsStore {
         switch (key) {
             case KEY_ENABLED:
                 return DEFAULT_ENABLED;
+            case KEY_STATUS_BAR_TINT_ENABLED:
+                return DEFAULT_STATUS_BAR_TINT_ENABLED;
             case KEY_BATTERY_CODE_DRAW_ENABLED:
                 return DEFAULT_BATTERY_CODE_DRAW_ENABLED;
             case KEY_CAMERA_CIRCLE_BATTERY_ENABLED:

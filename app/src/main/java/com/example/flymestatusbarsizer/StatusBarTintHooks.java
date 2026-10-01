@@ -49,6 +49,7 @@ final class StatusBarTintHooks {
     private static boolean launcherReceiverRegistered, launcherVisible;
     private static boolean shadeExpanded, centerExpanded;
     private static boolean replaying, forceRefresh;
+    private static boolean tintActive, restorePending;
     // Keep native inputs separate; dispatcher fields always hold the effective scene color.
     private static final ArgbEvaluator ARGB = new ArgbEvaluator();
     private static final ArrayList<Rect> EMPTY_AREAS = new ArrayList<>();
@@ -70,12 +71,9 @@ final class StatusBarTintHooks {
                     if (chain.getArgs().size() > 1 && Integer.valueOf(0).equals(chain.getArg(0))
                             && chain.getArg(1) instanceof Context) {
                         dispatcher = chain.getThisObject();
-                        nativeAreas = copyAreas((ArrayList<?>) field(dispatcher, "mTintAreas"));
-                        nativeIntensity = (Float) field(dispatcher, "mDarkIntensity");
-                        nativeTint = (Integer) field(dispatcher, "mIconTint");
-                        nativeContrast = (Integer) field(dispatcher, "mContrastTint");
-                        appliedAreas = null;
-                        panelNativeAreas = null;
+                        tintActive = false;
+                        restorePending = false;
+                        syncEnabled();
                         registerSceneReceiver((Context) chain.getArg(1));
                     }
                     return result;
@@ -85,7 +83,7 @@ final class StatusBarTintHooks {
             Log.w(TAG, "Dispatcher unavailable", error);
         }
         hook(module, loader, PHONE + "DarkIconDispatcherImpl", "applyDarkIntensity", chain -> {
-            if (chain.getThisObject() != dispatcher) return chain.proceed();
+            if (chain.getThisObject() != dispatcher || !syncEnabled()) return chain.proceed();
             nativeIntensity = (Float) chain.getArg(0);
             nativeTint = (Integer) ARGB.evaluate(nativeIntensity,
                     field(dispatcher, "mLightModeIconColorSingleTone"),
@@ -97,7 +95,7 @@ final class StatusBarTintHooks {
             return null;
         });
         hook(module, loader, PHONE + "DarkIconDispatcherImpl", "setIconsDarkArea", chain -> {
-            if (chain.getThisObject() != dispatcher) return chain.proceed();
+            if (chain.getThisObject() != dispatcher || !syncEnabled()) return chain.proceed();
             ArrayList<?> areas = (ArrayList<?>) chain.getArg(0);
             if (areas == null ? !nativeAreas.isEmpty() : !nativeAreas.equals(areas)) {
                 nativeAreas = copyAreas(areas);
@@ -112,6 +110,7 @@ final class StatusBarTintHooks {
         for (String type : new String[]{HEADER, QS}) {
             hook(module, loader, type, "onDarkChanged", chain -> {
                 // Panel caches must retain native colors, not the desktop override.
+                if (!tintActive || !enabled()) return chain.proceed();
                 PANEL_TINTS.putIfAbsent(chain.getThisObject(), null);
                 return dispatcher == null ? chain.proceed()
                         : chain.proceed(new Object[]{nativeAreas, nativeIntensity, nativeTint});
@@ -130,6 +129,7 @@ final class StatusBarTintHooks {
             hook(module, loader, type, "updateViewColor", chain -> {
                 Object target = chain.getThisObject();
                 if (!replaying) PANEL_COLORS.put(target, (Integer) chain.getArg(0));
+                if (!enabled()) return chain.proceed();
                 int currentScene = scene();
                 // Each panel owns its tint; a system-default panel never inherits home/lock overrides.
                 int panelScene = bool(target, "mIsBelongToClassicPanel")
@@ -149,6 +149,7 @@ final class StatusBarTintHooks {
             View view = (View) chain.getThisObject();
             Object manager = chain.getArg(0);
             LOCK_VIEWS.put(view, new WeakReference<>(manager));
+            if (!enabled()) return chain.proceed();
             int currentScene = scene();
             int selected = mode(currentScene == 2 || currentScene == 3 ? currentScene :
                     currentScene == 4 ? 4 : -1);
@@ -236,7 +237,37 @@ final class StatusBarTintHooks {
     private static int mode(int scene) {
         if (scene < 0) return 0;
         ModuleConfig config = ModuleConfig.load(null);
-        return config.enabled ? config.statusBarTintModes[scene] : 0;
+        return config.enabled && config.statusBarTintEnabled ? config.statusBarTintModes[scene] : 0;
+    }
+
+    private static boolean enabled() {
+        ModuleConfig config = ModuleConfig.load(null);
+        return config.enabled && config.statusBarTintEnabled;
+    }
+
+    private static boolean syncEnabled() {
+        boolean active = enabled();
+        if (dispatcher == null || active == tintActive) return active;
+        if (active) {
+            // Native code may have changed these while the feature was off.
+            nativeAreas = copyAreas((ArrayList<?>) field(dispatcher, "mTintAreas"));
+            nativeIntensity = (Float) field(dispatcher, "mDarkIntensity");
+            nativeTint = (Integer) field(dispatcher, "mIconTint");
+            nativeContrast = (Integer) field(dispatcher, "mContrastTint");
+        } else {
+            // Restore before allowing the native callbacks to run again.
+            ReflectUtils.setField(dispatcher, "mTintAreas", copyAreas(nativeAreas));
+            ReflectUtils.setFloatField(dispatcher, "mDarkIntensity", nativeIntensity);
+            ReflectUtils.setIntField(dispatcher, "mIconTint", nativeTint);
+            ReflectUtils.setIntField(dispatcher, "mContrastTint", nativeContrast);
+        }
+        tintActive = active;
+        restorePending = !active;
+        appliedAreas = null;
+        panelNativeAreas = null;
+        PANEL_TINTS.clear();
+        lastScene = -2;
+        return active;
     }
 
     private static int color(int mode) { return mode == 1 ? Color.BLACK : Color.WHITE; }
@@ -250,6 +281,7 @@ final class StatusBarTintHooks {
     }
 
     private static void sceneChanged() {
+        if (!enabled()) return;
         int current = scene();
         if (current == lastScene) return;
         lastScene = current;
@@ -258,6 +290,7 @@ final class StatusBarTintHooks {
     }
 
     static void refresh() {
+        if (!enabled() && !tintActive && !restorePending) return;
         forceRefresh = true;
         MAIN.removeCallbacks(UPDATE);
         MAIN.post(UPDATE);
@@ -266,10 +299,15 @@ final class StatusBarTintHooks {
     private static void updateColors() {
         boolean force = forceRefresh;
         forceRefresh = false;
+        boolean active = syncEnabled();
+        if (!active && !restorePending) return;
+        force |= restorePending;
+        restorePending = false;
         // Rebuilt views need a forced refresh; opening a panel does not invalidate their colors.
         if (force) PANEL_TINTS.replaceAll((target, tint) -> null);
-        applyDispatcherTint(force);
-        int currentScene = scene();
+        if (active) applyDispatcherTint(force);
+        else ReflectUtils.invokeNoArg(dispatcher, "applyIconTint");
+        int currentScene = active ? scene() : -1;
         replaying = true;
         try {
             for (Map.Entry<Object, Integer> entry : new ArrayList<>(PANEL_COLORS.entrySet())) {
