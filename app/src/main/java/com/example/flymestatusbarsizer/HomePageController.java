@@ -1,6 +1,5 @@
 package com.example.flymestatusbarsizer;
 
-import android.graphics.Color;
 import android.graphics.Typeface;
 import android.view.Gravity;
 import android.view.View;
@@ -18,10 +17,24 @@ final class HomePageController {
         root.addView(label, PageViewUtils.matchWrapWithTop(activity, 8));
         TextView title = text(activity, "FlymeBarSizer", 30, activity.textColor());
         title.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        root.addView(title, PageViewUtils.matchWrapWithTop(activity, 4));
+        LinearLayout titleRow = new LinearLayout(activity);
+        titleRow.setGravity(Gravity.CENTER_VERTICAL);
+        titleRow.addView(title, new LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        ImageView donate = new ImageView(activity);
+        donate.setImageResource(R.drawable.ic_donate_copy);
+        donate.setColorFilter(activity.primaryColor());
+        donate.setContentDescription("捐赠");
+        donate.setPadding(activity.dp(8), activity.dp(8), activity.dp(8), activity.dp(8));
+        donate.setBackground(activity.roundRect(activity.surfaceColor(), 24));
+        activity.setTapClickListener(donate, v -> activity.openPage(MainActivity.Page.DONATION));
+        LinearLayout.LayoutParams donateLp = new LinearLayout.LayoutParams(activity.dp(40), activity.dp(40));
+        donateLp.leftMargin = activity.dp(12);
+        titleRow.addView(donate, donateLp);
+        root.addView(titleRow, PageViewUtils.matchWrapWithTop(activity, 4));
         root.addView(text(activity, "让系统界面更合心意", 14, activity.subtextColor()),
                 PageViewUtils.matchWrapWithTop(activity, 4));
-        root.addView(buildHeroCard(activity), PageViewUtils.matchWrapWithTop(activity, 12));
+        root.addView(buildRestartCard(activity), PageViewUtils.matchWrapWithTop(activity, 12));
 
         LinearLayout personal = addGroup(activity, root, "个性化");
         addEntry(activity, personal, "图标与电池", "图标大小 · 电池样式",
@@ -40,33 +53,26 @@ final class HomePageController {
                 R.drawable.ic_settings_info, MainActivity.Page.ABOUT);
     }
 
-    private static View buildHeroCard(MainActivity activity) {
-        LinearLayout card = activity.card(activity.primaryContainerColor(), 24);
-        card.setPadding(activity.dp(16), activity.dp(12), activity.dp(16), activity.dp(12));
-        TextView title = text(activity, "状态栏与系统界面", 18, activity.primaryDeepColor());
-        title.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        card.addView(title, PageViewUtils.matchWrap());
-        card.addView(text(activity, "从图标到交互，按你的习惯调整", 13, activity.subtextColor()),
-                PageViewUtils.matchWrapWithTop(activity, 6));
-
-        LinearLayout actions = new LinearLayout(activity);
-        actions.setGravity(Gravity.CENTER_VERTICAL);
-        TextView restart = activity.filledButton("重启 SystemUI", activity.primaryColor(), Color.WHITE);
-        activity.setTapClickListener(restart, v -> activity.restartSystemUi());
-        actions.addView(restart, new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-
-        ImageView donate = new ImageView(activity);
-        donate.setImageResource(R.drawable.ic_donate_copy);
-        donate.setColorFilter(activity.primaryColor());
-        donate.setContentDescription("捐赠");
-        donate.setPadding(activity.dp(8), activity.dp(8), activity.dp(8), activity.dp(8));
-        donate.setBackground(activity.roundRect(activity.surfaceColor(), 24));
-        activity.setTapClickListener(donate, v -> activity.openPage(MainActivity.Page.DONATION));
-        LinearLayout.LayoutParams donateLp = new LinearLayout.LayoutParams(activity.dp(40), activity.dp(40));
-        donateLp.leftMargin = activity.dp(12);
-        actions.addView(donate, donateLp);
-        card.addView(actions, PageViewUtils.matchWrapWithTop(activity, 10));
+    private static View buildRestartCard(MainActivity activity) {
+        LinearLayout content = new LinearLayout(activity);
+        content.setOrientation(LinearLayout.VERTICAL);
+        activity.addActionButtonRow(content, "SystemUI",
+                "修改状态栏、通知背景等设置后，重启系统界面。",
+                "重启", activity::restartSystemUi);
+        activity.addDivider(content);
+        activity.addActionButtonRow(content, "系统桌面",
+                "修改文件夹、后台布局或堆叠参数后，重启系统桌面。",
+                "重启", activity::restartLauncher);
+        activity.addDivider(content);
+        activity.addActionButtonRow(content, "SystemUITools",
+                "重启后小窗相关修改立即重新加载。",
+                "重启", activity::restartSystemUiTools);
+        activity.addDivider(content);
+        activity.addActionButtonRow(content, "OneMind/PPS",
+                "开关变更后重启 PPS，让进程重新加载模块。",
+                "重启", activity::restartOneMindPps);
+        View card = activity.buildSectionCard("应用重启", "设置修改后，在这里重启对应应用。", content);
+        card.setBackground(activity.roundRect(activity.primaryContainerColor(), 24));
         return card;
     }
 

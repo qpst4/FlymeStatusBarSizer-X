@@ -334,10 +334,6 @@ final class SettingsCardFactory {
                 "只在 IOS 式堆叠后台开启时生效。",
                 SettingsStore.KEY_LAUNCHER_IOS_STACK_RECENTS_CLEAR_ALL_BUTTON_ENABLED,
                 SettingsStore.DEFAULT_LAUNCHER_IOS_STACK_RECENTS_CLEAR_ALL_BUTTON_ENABLED);
-        activity.addDivider(content);
-        activity.addActionButtonRow(content, "重启系统桌面",
-                "后台布局需要重启系统桌面后再看完整效果。",
-                "重启", activity::restartLauncher);
         return activity.buildSectionCard(
                 "系统桌面后台",
                 "作用域是 com.meizu.flyme.launcher。保留原有 Quickstep 手势入口，只在原地改后台卡片布局。",
@@ -435,10 +431,6 @@ final class SettingsCardFactory {
         textColorSwitch.setEnabled(blurOnlySwitch.isChecked());
         blurOnlyOptions.setAlpha(blurOnlySwitch.isChecked() ? 1f : 0.45f);
         content.addView(blurOnlyOptions, blurOnlyOptionsLp);
-        activity.addDivider(content);
-        activity.addActionButtonRow(content, "重启 SystemUI",
-                "通知背景需要重启 SystemUI 后刷新。",
-                "重启", activity::restartSystemUi);
         content = addSection(root, "桌面 Aicy 入口", "强制显示桌面页码位置的 Aicy 入口，并接管显示文字和点击目标。");
         activity.addSwitchRow(content, "强制显示 Aicy 入口",
                 "忽略桌面原开关和 Aicy 助手安装状态。",
@@ -469,10 +461,6 @@ final class SettingsCardFactory {
                 "跟随系统",
                 "#73FFFFFF",
                 true);
-        activity.addDivider(content);
-        activity.addActionButtonRow(content, "重启系统桌面",
-                "桌面文件夹背景通常需要重启桌面后刷新。",
-                "重启", activity::restartLauncher);
         return root;
     }
 
@@ -663,10 +651,6 @@ final class SettingsCardFactory {
         activity.addActionButtonRow(content, "全部恢复默认",
                 "只恢复本页堆叠后台参数，不影响功能开关。",
                 "恢复", activity::resetLauncherStackParams);
-        activity.addDivider(content);
-        activity.addActionButtonRow(content, "重启系统桌面",
-                "参数调整后重启系统桌面可看到完整效果。",
-                "重启", activity::restartLauncher);
         return root;
     }
 
@@ -713,10 +697,6 @@ final class SettingsCardFactory {
         activity.addActionButtonRow(content, "Hook 点检测",
                 "检查当前系统 com.meizu.pps 里目标类和方法是否仍存在。",
                 "检测", () -> activity.detectOneMindHookPoints(status));
-        activity.addDivider(content);
-        activity.addActionButtonRow(content, "重启 OneMind/PPS",
-                "开关变更后重启 PPS 让进程重新加载模块。",
-                "重启", activity::restartOneMindPps);
         return activity.buildSectionCard(
                 "OneMind 性能调节",
                 "仅处理 PPS 性能下发入口，不处理热控。",
@@ -1077,10 +1057,6 @@ final class SettingsCardFactory {
         LinearLayout.LayoutParams sideGestureOptionsLp = PageViewUtils.matchWrap();
         sideGestureOptionsLp.leftMargin = activity.dp(12);
         page.addView(sideGestureOptions, sideGestureOptionsLp);
-        activity.addDivider(page);
-        activity.addActionButtonRow(page, "重启 SystemUITools",
-                "重启后小窗相关修改立即重新加载。",
-                "重启", activity::restartSystemUiTools);
         return page;
     }
 

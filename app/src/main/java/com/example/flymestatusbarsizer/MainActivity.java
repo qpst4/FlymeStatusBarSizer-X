@@ -61,7 +61,6 @@ public class MainActivity extends Activity {
     private static final int REQUEST_IMPORT_CONFIG = 1002;
 
     private static final int MENU_ABOUT = 1;
-    private static final int MENU_RESTART = 5;
     static final String IME_CONTROL_BAR_DRAG_LABEL = "ime_control_bar_button";
     static final int IME_CONTROL_BAR_POOL_ROW_ITEM_COUNT = 3;
     private static final String PACKAGE_SYSTEM_UI = "com.android.systemui";
@@ -351,17 +350,11 @@ public class MainActivity extends Activity {
     private void showMoreMenu(View anchor) {
         PopupMenu popup = new PopupMenu(this, anchor);
         popup.getMenu().add(0, MENU_ABOUT, 0, "关于与支持");
-        popup.getMenu().add(0, MENU_RESTART, 1, "重启 SystemUI");
         popup.setOnMenuItemClickListener(item -> {
             int id = item.getItemId();
             if (id == MENU_ABOUT) {
                 performTapHaptic(anchor);
                 openPage(Page.ABOUT);
-                return true;
-            }
-            if (id == MENU_RESTART) {
-                performTapHaptic(anchor);
-                restartSystemUi();
                 return true;
             }
             return false;
