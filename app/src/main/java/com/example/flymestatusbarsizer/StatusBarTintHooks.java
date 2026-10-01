@@ -1,5 +1,6 @@
 package com.example.flymestatusbarsizer;
 
+import android.animation.ArgbEvaluator;
 import android.app.Activity;
 import android.app.BroadcastOptions;
 import android.content.BroadcastReceiver;
@@ -42,11 +43,13 @@ final class StatusBarTintHooks {
     private static Object dispatcher, panel, center, keyguard, statusState;
     private static Context systemContext;
     private static int launcherScene = -1, sentScene = -2, lastScene = -2;
-    private static String appearancePackage = "";
-    private static boolean launcherReceiverRegistered;
+    private static boolean launcherReceiverRegistered, launcherVisible;
     private static boolean replaying;
-    // Native dispatcher inputs are preserved even while receivers see a fixed tint.
-    private static Object[] nativeDispatch;
+    // Keep native inputs separate; dispatcher fields always hold the effective scene color.
+    private static final ArgbEvaluator ARGB = new ArgbEvaluator();
+    private static ArrayList<?> nativeAreas = new ArrayList<>();
+    private static float nativeIntensity;
+    private static int nativeTint = Color.WHITE, nativeContrast = Color.BLACK;
 
     private StatusBarTintHooks() {}
 
@@ -59,6 +62,10 @@ final class StatusBarTintHooks {
                     if (chain.getArgs().size() > 1 && Integer.valueOf(0).equals(chain.getArg(0))
                             && chain.getArg(1) instanceof Context) {
                         dispatcher = chain.getThisObject();
+                        nativeAreas = new ArrayList<>((ArrayList<?>) field(dispatcher, "mTintAreas"));
+                        nativeIntensity = (Float) field(dispatcher, "mDarkIntensity");
+                        nativeTint = (Integer) field(dispatcher, "mIconTint");
+                        nativeContrast = (Integer) field(dispatcher, "mContrastTint");
                         registerSceneReceiver((Context) chain.getArg(1));
                     }
                     return result;
@@ -67,35 +74,34 @@ final class StatusBarTintHooks {
         } catch (Throwable error) {
             Log.w(TAG, "Dispatcher unavailable", error);
         }
-        for (String method : new String[]{"applyIconTint", "addDarkReceiver", "applyDark"}) {
-            hook(module, loader, PHONE + "DarkIconDispatcherImpl", method, chain -> {
-                int mode = mode(scene());
-                Object target = chain.getThisObject();
-                if (target != dispatcher || mode == 0 || nativeDispatch != null) return chain.proceed();
-                Object[] saved = {field(target, "mTintAreas"), field(target, "mDarkIntensity"),
-                        field(target, "mIconTint"), field(target, "mContrastTint")};
-                nativeDispatch = saved;
-                try {
-                    ReflectUtils.setField(target, "mTintAreas", new ArrayList<>());
-                    ReflectUtils.setFloatField(target, "mDarkIntensity", mode == 1 ? 1f : 0f);
-                    ReflectUtils.setIntField(target, "mIconTint", color(mode));
-                    ReflectUtils.setIntField(target, "mContrastTint", color(mode == 1 ? 2 : 1));
-                    return chain.proceed();
-                } finally {
-                    ReflectUtils.setField(target, "mTintAreas", saved[0]);
-                    ReflectUtils.setField(target, "mDarkIntensity", saved[1]);
-                    ReflectUtils.setField(target, "mIconTint", saved[2]);
-                    ReflectUtils.setField(target, "mContrastTint", saved[3]);
-                    nativeDispatch = null;
-                }
-            });
-        }
+        hook(module, loader, PHONE + "DarkIconDispatcherImpl", "applyDarkIntensity", chain -> {
+            if (chain.getThisObject() != dispatcher) return chain.proceed();
+            nativeIntensity = (Float) chain.getArg(0);
+            nativeTint = (Integer) ARGB.evaluate(nativeIntensity,
+                    field(dispatcher, "mLightModeIconColorSingleTone"),
+                    field(dispatcher, "mDarkModeIconColorSingleTone"));
+            nativeContrast = (Integer) ARGB.evaluate(nativeIntensity,
+                    field(dispatcher, "mLightModeContrastColor"),
+                    field(dispatcher, "mDarkModeContrastColor"));
+            applyDispatcherTint();
+            return null;
+        });
+        hook(module, loader, PHONE + "DarkIconDispatcherImpl", "setIconsDarkArea", chain -> {
+            if (chain.getThisObject() != dispatcher) return chain.proceed();
+            ArrayList<?> areas = (ArrayList<?>) chain.getArg(0);
+            nativeAreas = areas == null ? new ArrayList<>() : new ArrayList<>(areas);
+            applyDispatcherTint();
+            return null;
+        });
+        // Compiled animation callers must enter the hooks instead of an inlined color calculation.
+        deoptimize(module, loader, PHONE + "LightBarTransitionsController",
+                "dispatchDark", "setIconTintInternal", "lambda$animateIconTint$0");
+        deoptimize(module, loader, PHONE + "LightBarControllerImpl", "updateStatus");
         for (String type : new String[]{HEADER, QS}) {
             hook(module, loader, type, "onDarkChanged", chain -> {
                 // Panel caches must retain native colors, not the desktop override.
-                Object[] saved = nativeDispatch;
-                return saved == null ? chain.proceed()
-                        : chain.proceed(new Object[]{saved[0], saved[1], saved[2]});
+                return dispatcher == null ? chain.proceed()
+                        : chain.proceed(new Object[]{nativeAreas, nativeIntensity, nativeTint});
             });
             // The expanded header also colors editing controls and dates; only tint the status bar.
             if (!QS.equals(type)) continue;
@@ -133,23 +139,14 @@ final class StatusBarTintHooks {
                 new String[]{"updatePanelExpanded"}, 1);
         watch(module, loader, "com.android.systemui.statusbar.policy.KeyguardStateControllerImpl",
                 new String[]{"notifyKeyguardState", "notifyPrimaryBouncerShowing",
-                        "notifyKeyguardGoingAway"}, 2);
+                        "notifyKeyguardGoingAway", "notifyKeyguardFadingAway",
+                        "notifyKeyguardDoneFading"}, 2);
         watch(module, loader, "com.android.systemui.statusbar.StatusBarStateControllerImpl",
                 new String[]{"setState", "setIsDozing", "onShadeOrQsExpanded"}, 3);
         hook(module, loader, "com.android.systemui.shade.QuickSettingsControllerImpl", "setExpanded", chain -> {
             Object result = chain.proceed();
             sceneChanged();
             return result;
-        });
-        hook(module, loader, "com.android.systemui.statusbar.CommandQueue", "onSystemBarAttributesChanged", chain -> {
-            if (Integer.valueOf(0).equals(chain.getArg(0))) {
-                String name = (String) chain.getArg(6);
-                MAIN.post(() -> {
-                    appearancePackage = name;
-                    sceneChanged();
-                });
-            }
-            return chain.proceed();
         });
     }
 
@@ -170,17 +167,19 @@ final class StatusBarTintHooks {
     }
 
     private static int scene() {
-        boolean locked = bool(keyguard, "mShowing");
         int state = ReflectUtils.getIntField(statusState, "mState", -1);
+        // mShowing becomes false before the lockscreen finishes fading/sliding away.
+        boolean locked = bool(keyguard, "mShowing") || state == 1
+                || bool(keyguard, "mKeyguardGoingAway") || bool(keyguard, "mKeyguardFadingAway");
         boolean blocked = bool(statusState, "mIsDozing") || bool(panel, "mDozing")
                 || bool(panel, "mIsPrimaryBouncerShowing") || bool(keyguard, "mPrimaryBouncerShowing")
-                || (locked && bool(keyguard, "mOccluded")) || bool(keyguard, "mKeyguardGoingAway");
+                || (locked && bool(keyguard, "mOccluded"));
         boolean control = positive(center, "mExpandedFraction");
         boolean shade = positive(panel, "mExpandedFraction") && (!locked || state == 2);
         boolean qs = shade && Boolean.TRUE.equals(
                 ReflectUtils.invokeNoArg(field(panel, "mQsController"), "getExpanded"));
-        return selectScene(blocked, control || qs, shade, locked && state == 1,
-                !locked && LAUNCHER.equals(appearancePackage) ? launcherScene : -1);
+        return selectScene(blocked, control || qs, shade, locked,
+                !locked ? launcherScene : -1);
     }
 
     // Overlay scenes take precedence; unknown/occluded states always use native colors.
@@ -221,7 +220,7 @@ final class StatusBarTintHooks {
     }
 
     private static void updateColors() {
-        ReflectUtils.invokeNoArg(dispatcher, "applyIconTint");
+        applyDispatcherTint();
         replaying = true;
         try {
             for (Map.Entry<Object, Integer> entry : new ArrayList<>(PANEL_COLORS.entrySet())) {
@@ -236,6 +235,20 @@ final class StatusBarTintHooks {
         } finally {
             replaying = false;
         }
+    }
+
+    private static void applyDispatcherTint() {
+        if (dispatcher == null) return;
+        int selected = mode(scene());
+        // Publish one consistent state to callbacks, newly added icons and the notification flow.
+        ReflectUtils.setField(dispatcher, "mTintAreas",
+                selected == 0 ? new ArrayList<>(nativeAreas) : new ArrayList<>());
+        ReflectUtils.setFloatField(dispatcher, "mDarkIntensity",
+                selected == 0 ? nativeIntensity : selected == 1 ? 1f : 0f);
+        ReflectUtils.setIntField(dispatcher, "mIconTint", selected == 0 ? nativeTint : color(selected));
+        ReflectUtils.setIntField(dispatcher, "mContrastTint",
+                selected == 0 ? nativeContrast : color(selected == 1 ? 2 : 1));
+        ReflectUtils.invokeNoArg(dispatcher, "applyIconTint");
     }
 
     private static void applyLockColor(View view, Object manager, int mode) throws ReflectiveOperationException {
@@ -280,17 +293,25 @@ final class StatusBarTintHooks {
     }
 
     static void installLauncher(FlymeStatusBarSizer module, ClassLoader loader) {
-        for (String method : new String[]{"onResume", "onPause", "onWindowFocusChanged"}) {
-            hook(module, loader, "android.app.Activity", method, chain -> {
+        // Observe the complete lifecycle dispatch, not Activity's overridden/empty base callbacks.
+        // Pause precedes the app launch animation; stop marks the launcher becoming invisible.
+        for (String method : new String[]{"callActivityOnResume", "callActivityOnStop"}) {
+            hook(module, loader, "android.app.Instrumentation", method, chain -> {
                 Object result = chain.proceed();
-                Activity activity = (Activity) chain.getThisObject();
-                if (!LAUNCHER.equals(activity.getPackageName())) return result;
-                if (ReflectUtils.invokeNoArg(activity, "getStateManager") != null) {
+                Activity activity = (Activity) chain.getArg(0);
+                if (!LAUNCHER.equals(activity.getPackageName())
+                        || ReflectUtils.invokeNoArg(activity, "getStateManager") == null) return result;
+                if ("callActivityOnResume".equals(method)) {
                     launcherActivity = new WeakReference<>(activity);
+                    launcherVisible = true;
                     registerLauncherReceiver(activity.getApplicationContext());
-                    MAIN.removeCallbacks(SEND);
-                    MAIN.post(SEND);
+                } else if (activity == launcherActivity.get()) {
+                    launcherVisible = false;
+                } else {
+                    return result;
                 }
+                MAIN.removeCallbacks(SEND);
+                sendLauncherScene(false);
                 return result;
             });
         }
@@ -318,7 +339,8 @@ final class StatusBarTintHooks {
         Activity activity = launcherActivity.get();
         if (activity == null || Build.VERSION.SDK_INT < 34) return;
         int selected = -1;
-        if (activity.hasWindowFocus() && !activity.isFinishing() && !activity.isDestroyed()) {
+        // Keep the scene while the launcher remains visible behind an opening app.
+        if (launcherVisible && !activity.isFinishing() && !activity.isDestroyed()) {
             Object manager = ReflectUtils.invokeNoArg(activity, "getStateManager");
             Object state = ReflectUtils.invokeNoArg(manager, "getState");
             Object normal = ReflectUtils.getStaticField(activity.getClassLoader(),
@@ -334,6 +356,19 @@ final class StatusBarTintHooks {
     private static void send(Context context, Intent intent) {
         if (Build.VERSION.SDK_INT >= 34) context.sendBroadcast(intent, null,
                 BroadcastOptions.makeBasic().setShareIdentityEnabled(true).toBundle());
+    }
+
+    private static void deoptimize(FlymeStatusBarSizer module, ClassLoader loader, String type,
+            String... names) {
+        try {
+            for (Method method : Class.forName(type, false, loader).getDeclaredMethods()) {
+                for (String name : names) {
+                    if (name.equals(method.getName())) module.deoptimize(method);
+                }
+            }
+        } catch (Throwable error) {
+            Log.w(TAG, "Cannot deoptimize tint callers: " + type, error);
+        }
     }
 
     private static void hook(FlymeStatusBarSizer module, ClassLoader loader, String type,
