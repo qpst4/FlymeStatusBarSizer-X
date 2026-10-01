@@ -99,8 +99,6 @@ public class FlymeStatusBarSizer extends XposedModule {
     private static final WeakHashMap<View, Boolean> TRACKED_WIFI_ACTIVITY_ROOTS =
             new WeakHashMap<>();
     private static final WeakHashMap<ImageView, Long> WIFI_LAYOUT_SIGNATURES = new WeakHashMap<>();
-    private static final WeakHashMap<ImageView, Boolean> WIFI_ICON_TAKEOVER_STATES =
-            new WeakHashMap<>();
     private static final WeakHashMap<Drawable, View> SIGNAL_DRAWABLE_OWNERS = new WeakHashMap<>();
     private static final WeakHashMap<View, SignalViewState> SIGNAL_VIEW_STATES = new WeakHashMap<>();
     private static final WeakHashMap<View, WeakReference<View>> BATTERY_TINT_SOURCE_CACHE =
@@ -883,8 +881,13 @@ public class FlymeStatusBarSizer extends XposedModule {
             Method setImageResource = ImageView.class.getDeclaredMethod("setImageResource", int.class);
             setImageResource.setAccessible(true);
             hook(setImageResource).intercept(chain -> {
-                Object result = chain.proceed();
                 Object target = chain.getThisObject();
+                if (target instanceof ImageView
+                        && interceptWifiImageAssignment((ImageView) target,
+                                ((Integer) chain.getArg(0)).intValue(), null, null)) {
+                    return null;
+                }
+                Object result = chain.proceed();
                 if (target instanceof ImageView) {
                     onSignalImageResourceAssigned((ImageView) target, ((Integer) chain.getArg(0)).intValue());
                 }
@@ -897,8 +900,13 @@ public class FlymeStatusBarSizer extends XposedModule {
             Method setImageIcon = ImageView.class.getDeclaredMethod("setImageIcon", Icon.class);
             setImageIcon.setAccessible(true);
             hook(setImageIcon).intercept(chain -> {
-                Object result = chain.proceed();
                 Object target = chain.getThisObject();
+                if (target instanceof ImageView
+                        && interceptWifiImageAssignment((ImageView) target,
+                                0, (Icon) chain.getArg(0), null)) {
+                    return null;
+                }
+                Object result = chain.proceed();
                 if (target instanceof ImageView) {
                     onSignalImageIconAssigned((ImageView) target, (Icon) chain.getArg(0));
                 }
@@ -911,8 +919,13 @@ public class FlymeStatusBarSizer extends XposedModule {
             Method setImageDrawable = ImageView.class.getDeclaredMethod("setImageDrawable", Drawable.class);
             setImageDrawable.setAccessible(true);
             hook(setImageDrawable).intercept(chain -> {
-                Object result = chain.proceed();
                 Object target = chain.getThisObject();
+                if (target instanceof ImageView
+                        && interceptWifiImageAssignment((ImageView) target,
+                                0, null, (Drawable) chain.getArg(0))) {
+                    return null;
+                }
+                Object result = chain.proceed();
                 if (target instanceof ImageView) {
                     onSignalImageDrawableAssigned((ImageView) target, (Drawable) chain.getArg(0));
                 }
@@ -3843,33 +3856,6 @@ public class FlymeStatusBarSizer extends XposedModule {
         if ("mobile_type".equals(idName)) {
             recordMobileTypeImageAssignment(view, assignmentType, resId, icon, drawable);
         }
-        if ("wifi_signal".equals(idName)) {
-            boolean debug = isWifiPerfLoggingEnabled();
-            long startNs = debug ? SystemClock.elapsedRealtimeNanos() : 0L;
-            long eventId = LAST_WIFI_PERF_EVENT_ID;
-            ModuleConfig config = ModuleConfig.load(view.getContext());
-            if (isWifiCodeDrawEnabled(config)) {
-                maybeTakeOverWifiIconFromImageAssignment(view, resId, icon, drawable);
-                if (debug) {
-                    logWifiPerf(eventId, "image.assign.wifi",
-                            "dur=" + formatDurationNs(SystemClock.elapsedRealtimeNanos() - startNs)
-                                    + ",codeDraw=true,"
-                                    + describeWifiAssignmentForPerf(view, assignmentType, resId, icon, drawable)
-                                    + "," + describeWifiViewForPerf(view)
-                                    + ",takeoverComplete=" + isWifiIconTakeoverComplete(view));
-                }
-            } else {
-                applyStatusBarScaleIfNeeded(view);
-                if (debug) {
-                    logWifiPerf(eventId, "image.assign.wifi",
-                            "dur=" + formatDurationNs(SystemClock.elapsedRealtimeNanos() - startNs)
-                                    + ",codeDraw=false,"
-                                    + describeWifiAssignmentForPerf(view, assignmentType, resId, icon, drawable)
-                                    + "," + describeWifiViewForPerf(view));
-                }
-            }
-            return;
-        }
         if (!isMobileSignalRelatedId(idName)) {
             applyStatusBarScaleIfNeeded(view);
             return;
@@ -4753,10 +4739,6 @@ public class FlymeStatusBarSizer extends XposedModule {
         }
     }
 
-    private static void applyWifiIconOverride(ImageView view, int resId, Icon icon, Drawable drawable) {
-        applyWifiIconOverride(view, resId, icon, drawable, "unspecified");
-    }
-
     private static void applyWifiIconOverride(ImageView view, int resId, Icon icon, Drawable drawable,
                                               String source) {
         if (view == null) {
@@ -4788,7 +4770,6 @@ public class FlymeStatusBarSizer extends XposedModule {
         Drawable current = view.getDrawable();
         if (current instanceof WifiIconDrawable) {
             WifiIconDrawable wifiDrawable = (WifiIconDrawable) current;
-            rememberWifiIconTakeover(view);
             if (wifiDrawable.matchesGeometry(intrinsicWidth, intrinsicHeight, visualBandHeight)) {
                 boolean changed = wifiDrawable.setStateValues(level, showSecondaryBadge, secondaryLevel);
                 if (debug) {
@@ -4810,7 +4791,6 @@ public class FlymeStatusBarSizer extends XposedModule {
         wifiDrawable.setState(view.getDrawableState());
         wifiDrawable.setTintList(view.getImageTintList());
         applyWifiDrawableToView(view, wifiDrawable);
-        rememberWifiIconTakeover(view);
         if (debug) {
             logWifiPerf(eventId, "override.create",
                     "dur=" + formatDurationNs(SystemClock.elapsedRealtimeNanos() - startNs)
@@ -4823,29 +4803,18 @@ public class FlymeStatusBarSizer extends XposedModule {
         }
     }
 
-    private static void maybeTakeOverWifiIconFromImageAssignment(ImageView view, int resId,
-                                                                 Icon icon, Drawable drawable) {
-        if (view == null || isWifiIconTakeoverComplete(view)) {
-            return;
-        }
-        applyWifiIconOverride(view, resId, icon, drawable, "imageAssignment");
-    }
-
-    private static boolean isWifiIconTakeoverComplete(ImageView view) {
-        if (view == null) {
+    private static boolean interceptWifiImageAssignment(ImageView view, int resId,
+                                                        Icon icon, Drawable drawable) {
+        if (isSignalDrawableApplyGuardActive(view)
+                || !"wifi_signal".equals(getSystemUiIdName(view))
+                || !isWifiCodeDrawEnabled(ModuleConfig.load(view.getContext()))) {
             return false;
         }
-        if (view.getDrawable() instanceof WifiIconDrawable) {
-            return true;
-        }
-        return Boolean.TRUE.equals(WIFI_ICON_TAKEOVER_STATES.get(view));
-    }
-
-    private static void rememberWifiIconTakeover(ImageView view) {
-        if (view == null) {
-            return;
-        }
-        WIFI_ICON_TAKEOVER_STATES.put(view, Boolean.TRUE);
+        trackStatusBarIconView(view);
+        trackWifiRefreshTarget(view);
+        // Keep the system drawable out of the view; reuse the custom drawable when possible.
+        applyWifiIconOverride(view, resId, icon, drawable, "beforeImageAssignment");
+        return true;
     }
 
     private static void syncWifiIconLayout(ImageView view, ModuleConfig config) {
