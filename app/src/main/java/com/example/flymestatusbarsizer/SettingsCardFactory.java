@@ -9,6 +9,8 @@ import android.widget.TextView;
 
 final class SettingsCardFactory {
     private final MainActivity activity;
+    private LinearLayout batteryIconOptions;
+    private LinearLayout batterySizingOptions;
 
     SettingsCardFactory(MainActivity activity) {
         this.activity = activity;
@@ -22,11 +24,6 @@ final class SettingsCardFactory {
         LinearLayout content = new LinearLayout(activity);
         content.setOrientation(LinearLayout.VERTICAL);
 
-        activity.addSwitchRow(content, "代码绘制电池图标",
-                "关闭后恢复系统原来的电池图标，不再接管这一项的绘制和尺寸。",
-                SettingsStore.KEY_BATTERY_CODE_DRAW_ENABLED,
-                SettingsStore.DEFAULT_BATTERY_CODE_DRAW_ENABLED);
-        activity.addDivider(content);
         LinearLayout circleBatteryOptions = new LinearLayout(activity);
         circleBatteryOptions.setOrientation(LinearLayout.VERTICAL);
         circleBatteryOptions.setVisibility(SettingsStore.readBoolean(
@@ -38,40 +35,54 @@ final class SettingsCardFactory {
                 "开启后使用 Flyme 原生摄像头孔位环形电池。",
                 SettingsStore.KEY_CAMERA_CIRCLE_BATTERY_ENABLED,
                 SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_ENABLED,
-                (buttonView, isChecked) -> circleBatteryOptions.setVisibility(
-                        isChecked ? View.VISIBLE : View.GONE));
+                (buttonView, isChecked) -> {
+                    circleBatteryOptions.setVisibility(isChecked ? View.VISIBLE : View.GONE);
+                    updateBatteryOptionsVisibility();
+                });
         activity.addSwitchRow(circleBatteryOptions, "隐藏普通电池图标",
                 "同时隐藏代码绘制和系统原生电池图标，并释放原来的占位。",
                 SettingsStore.KEY_CAMERA_CIRCLE_BATTERY_HIDE_ICON_ENABLED,
-                SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_HIDE_ICON_ENABLED);
+                SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_HIDE_ICON_ENABLED,
+                (buttonView, isChecked) -> updateBatteryOptionsVisibility());
         activity.addSwitchRow(circleBatteryOptions, "彩虹色",
                 "让环形电池普通电量显示动态彩虹渐变。",
                 SettingsStore.KEY_CAMERA_CIRCLE_BATTERY_TINT_ENABLED,
                 SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_TINT_ENABLED);
         activity.addDivider(circleBatteryOptions);
-        activity.addSliderRow(circleBatteryOptions, "环形电池半径",
+        LinearLayout circleAppearance = new LinearLayout(activity);
+        circleAppearance.setOrientation(LinearLayout.VERTICAL);
+        activity.addSliderRow(circleAppearance, "环形电池半径",
                 "放大后可避开摄像头和周围黑边。",
                 SettingsStore.KEY_CAMERA_CIRCLE_BATTERY_RADIUS_PERCENT,
                 SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_RADIUS_PERCENT,
                 80, 200, "%");
-        activity.addDivider(circleBatteryOptions);
-        activity.addSliderRow(circleBatteryOptions, "环形电池粗细",
+        activity.addSliderRow(circleAppearance, "环形电池粗细",
                 "单独调整圆环线条粗细，不改变半径。",
                 SettingsStore.KEY_CAMERA_CIRCLE_BATTERY_STROKE_PERCENT,
                 SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_STROKE_PERCENT,
                 50, 300, "%");
+        circleBatteryOptions.addView(activity.buildSectionCard("环形电池外观",
+                "调整摄像头环形电池的半径和线条粗细。", circleAppearance),
+                PageViewUtils.matchWrap());
         LinearLayout.LayoutParams circleBatteryOptionsLp = activity.matchWrapWithTop(10);
         circleBatteryOptionsLp.leftMargin = activity.dp(12);
         content.addView(circleBatteryOptions, circleBatteryOptionsLp);
-        activity.addDivider(content);
-        activity.addChoiceRow(content, "电池图标样式",
+        batteryIconOptions = new LinearLayout(activity);
+        batteryIconOptions.setOrientation(LinearLayout.VERTICAL);
+        activity.addDivider(batteryIconOptions);
+        activity.addSwitchRow(batteryIconOptions, "代码绘制电池图标",
+                "关闭后恢复系统原来的电池图标，不再接管这一项的绘制和尺寸。",
+                SettingsStore.KEY_BATTERY_CODE_DRAW_ENABLED,
+                SettingsStore.DEFAULT_BATTERY_CODE_DRAW_ENABLED);
+        activity.addDivider(batteryIconOptions);
+        activity.addChoiceRow(batteryIconOptions, "电池图标样式",
                 "当前保留类 IOS、类 One UI 和 IOS 旧版三套代码绘制样式。",
                 SettingsStore.KEY_BATTERY_ICON_STYLE,
                 SettingsStore.DEFAULT_BATTERY_ICON_STYLE,
                 new int[]{SettingsStore.BATTERY_STYLE_IOS, SettingsStore.BATTERY_STYLE_ONEUI,
                         SettingsStore.BATTERY_STYLE_FLYME_CAPSULE},
                 new String[]{"类 IOS", "类 One UI", "IOS 旧版"});
-        activity.addDivider(content);
+        activity.addDivider(batteryIconOptions);
         LinearLayout hollowSection = new LinearLayout(activity);
         hollowSection.setOrientation(LinearLayout.VERTICAL);
         hollowSection.setVisibility(SettingsStore.readBoolean(
@@ -83,7 +94,7 @@ final class SettingsCardFactory {
                 activity.prefs(),
                 SettingsStore.KEY_BATTERY_HOLLOW_ENABLED,
                 SettingsStore.DEFAULT_BATTERY_HOLLOW_ENABLED) ? View.VISIBLE : View.GONE);
-        activity.addSwitchRow(content, "电池内显示电量数字",
+        activity.addSwitchRow(batteryIconOptions, "电池内显示电量数字",
                 "关闭后只保留图形电池，不在电池内部绘制剩余电量数字。",
                 SettingsStore.KEY_BATTERY_LEVEL_TEXT_ENABLED,
                 SettingsStore.DEFAULT_BATTERY_LEVEL_TEXT_ENABLED,
@@ -98,19 +109,59 @@ final class SettingsCardFactory {
         hollowSection.addView(hollowOptions, hollowOptionsLp);
         LinearLayout.LayoutParams hollowSectionLp = activity.matchWrapWithTop(10);
         hollowSectionLp.leftMargin = activity.dp(12);
-        content.addView(hollowSection, hollowSectionLp);
-        activity.addDivider(content);
+        batteryIconOptions.addView(hollowSection, hollowSectionLp);
+        activity.addDivider(batteryIconOptions);
         int[] batteryTextFontOptions = BatteryTextFontHelper.getAvailableFontOptions(activity);
-        activity.addChoiceRow(content, "电池数字字体",
+        activity.addChoiceRow(batteryIconOptions, "电池数字字体",
                 "会列出系统可用字体，也包含模块自带的 MiSansLatinVFNumber。",
                 SettingsStore.KEY_BATTERY_TEXT_FONT,
                 SettingsStore.DEFAULT_BATTERY_TEXT_FONT,
                 batteryTextFontOptions,
                 BatteryTextFontHelper.getFontLabels(batteryTextFontOptions));
+        activity.addDivider(batteryIconOptions);
+        LinearLayout batteryAppearance = new LinearLayout(activity);
+        batteryAppearance.setOrientation(LinearLayout.VERTICAL);
+        activity.addApplySliderRow(batteryAppearance, "电池主体宽度",
+                "默认 100%。One UI 和两种带电池帽样式都生效。",
+                SettingsStore.KEY_BATTERY_BODY_WIDTH_PERCENT,
+                SettingsStore.DEFAULT_BATTERY_BODY_WIDTH_PERCENT, 50, 150, "%");
+        activity.addApplySliderRow(batteryAppearance, "电池主体高度",
+                "默认 100%。调整主体高度，不改变状态栏图标占用大小。",
+                SettingsStore.KEY_BATTERY_BODY_HEIGHT_PERCENT,
+                SettingsStore.DEFAULT_BATTERY_BODY_HEIGHT_PERCENT, 50, 150, "%");
+        activity.addApplySliderRow(batteryAppearance, "电池圆角",
+                "默认值保持当前样式外观；0% 为直角，200% 为最大圆角。",
+                SettingsStore.KEY_BATTERY_CORNER_RADIUS_PERCENT,
+                SettingsStore.DEFAULT_BATTERY_CORNER_RADIUS_PERCENT, 0, 200, "%");
+        activity.addApplySliderRow(batteryAppearance, "电池帽宽度",
+                "默认 100%。仅类 IOS 和 IOS 旧版样式生效。",
+                SettingsStore.KEY_BATTERY_CAP_WIDTH_PERCENT,
+                SettingsStore.DEFAULT_BATTERY_CAP_WIDTH_PERCENT, 50, 150, "%");
+        batteryIconOptions.addView(activity.buildSectionCard("电池外观",
+                "调整普通电池图标的尺寸和轮廓。", batteryAppearance),
+                PageViewUtils.matchWrap());
+        content.addView(batteryIconOptions, PageViewUtils.matchWrap());
+        updateBatteryOptionsVisibility();
         return activity.buildSectionCard(
                 "电池样式",
                 "状态栏电池绘制、数字样式和镂空细节都集中在这里。",
                 content);
+    }
+
+    private void updateBatteryOptionsVisibility() {
+        boolean hideIcon = SettingsStore.readBoolean(activity.prefs(),
+                SettingsStore.KEY_CAMERA_CIRCLE_BATTERY_ENABLED,
+                SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_ENABLED)
+                && SettingsStore.readBoolean(activity.prefs(),
+                SettingsStore.KEY_CAMERA_CIRCLE_BATTERY_HIDE_ICON_ENABLED,
+                SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_HIDE_ICON_ENABLED);
+        int visibility = hideIcon ? View.GONE : View.VISIBLE;
+        if (batteryIconOptions != null) {
+            batteryIconOptions.setVisibility(visibility);
+        }
+        if (batterySizingOptions != null) {
+            batterySizingOptions.setVisibility(visibility);
+        }
     }
 
     View createNotificationSettingsCard() {
@@ -144,11 +195,17 @@ final class SettingsCardFactory {
                 "关闭后恢复系统原来的移动信号和 Wi-Fi 图标，不再替换相关槽位和尺寸。",
                 SettingsStore.KEY_SIGNAL_CODE_DRAW_ENABLED,
                 SettingsStore.DEFAULT_SIGNAL_CODE_DRAW_ENABLED);
-        activity.addSliderRow(content, "第一根信号柱高度", "相对最高柱高度百分比。", SettingsStore.KEY_SIGNAL_BAR1_HEIGHT_PERCENT, SettingsStore.DEFAULT_SIGNAL_BAR1_HEIGHT_PERCENT, 0, 100, "%");
-        activity.addSliderRow(content, "第二根信号柱高度", "相对最高柱高度百分比。", SettingsStore.KEY_SIGNAL_BAR2_HEIGHT_PERCENT, SettingsStore.DEFAULT_SIGNAL_BAR2_HEIGHT_PERCENT, 0, 100, "%");
-        activity.addSliderRow(content, "第三根信号柱高度", "相对最高柱高度百分比。", SettingsStore.KEY_SIGNAL_BAR3_HEIGHT_PERCENT, SettingsStore.DEFAULT_SIGNAL_BAR3_HEIGHT_PERCENT, 0, 100, "%");
-        activity.addSliderRow(content, "信号柱圆角", "信号柱圆角比例。", SettingsStore.KEY_SIGNAL_BAR_CORNER_RADIUS_PERCENT, SettingsStore.DEFAULT_SIGNAL_BAR_CORNER_RADIUS_PERCENT, 0, 100, "%");
-        activity.addSliderRow(content, "双卡圆点圆角", "双卡合一圆点的圆角比例。", SettingsStore.KEY_SIGNAL_DOT_CORNER_RADIUS_PERCENT, SettingsStore.DEFAULT_SIGNAL_DOT_CORNER_RADIUS_PERCENT, 0, 100, "%");
+        activity.addDivider(content);
+        LinearLayout signalAppearance = new LinearLayout(activity);
+        signalAppearance.setOrientation(LinearLayout.VERTICAL);
+        activity.addSliderRow(signalAppearance, "第一根信号柱高度", "相对最高柱高度百分比。", SettingsStore.KEY_SIGNAL_BAR1_HEIGHT_PERCENT, SettingsStore.DEFAULT_SIGNAL_BAR1_HEIGHT_PERCENT, 0, 100, "%");
+        activity.addSliderRow(signalAppearance, "第二根信号柱高度", "相对最高柱高度百分比。", SettingsStore.KEY_SIGNAL_BAR2_HEIGHT_PERCENT, SettingsStore.DEFAULT_SIGNAL_BAR2_HEIGHT_PERCENT, 0, 100, "%");
+        activity.addSliderRow(signalAppearance, "第三根信号柱高度", "相对最高柱高度百分比。", SettingsStore.KEY_SIGNAL_BAR3_HEIGHT_PERCENT, SettingsStore.DEFAULT_SIGNAL_BAR3_HEIGHT_PERCENT, 0, 100, "%");
+        activity.addSliderRow(signalAppearance, "信号柱圆角", "信号柱圆角比例。", SettingsStore.KEY_SIGNAL_BAR_CORNER_RADIUS_PERCENT, SettingsStore.DEFAULT_SIGNAL_BAR_CORNER_RADIUS_PERCENT, 0, 100, "%");
+        activity.addSliderRow(signalAppearance, "双卡圆点圆角", "双卡合一圆点的圆角比例。", SettingsStore.KEY_SIGNAL_DOT_CORNER_RADIUS_PERCENT, SettingsStore.DEFAULT_SIGNAL_DOT_CORNER_RADIUS_PERCENT, 0, 100, "%");
+        content.addView(activity.buildSectionCard("信号外观",
+                "调整信号柱高度、信号柱圆角和双卡圆点圆角。", signalAppearance),
+                PageViewUtils.matchWrap());
         activity.addDivider(content);
         LinearLayout badgeTextOptions = new LinearLayout(activity);
         badgeTextOptions.setOrientation(LinearLayout.VERTICAL);
@@ -888,28 +945,15 @@ final class SettingsCardFactory {
                 "默认 100%。统一调右上角系统状态图标，还有代码绘制的电池和信号图标。",
                 SettingsStore.KEY_STATUS_BAR_ICON_SCALE_PERCENT,
                 SettingsStore.DEFAULT_STATUS_BAR_ICON_SCALE_PERCENT, 50, 200, "%");
-        activity.addDivider(content);
-        activity.addApplySliderRow(content, "电池内部数字大小",
+        batterySizingOptions = new LinearLayout(activity);
+        batterySizingOptions.setOrientation(LinearLayout.VERTICAL);
+        activity.addDivider(batterySizingOptions);
+        activity.addApplySliderRow(batterySizingOptions, "电池内部数字大小",
                 "只改电池图标内部的电量数字。默认 100%。",
                 SettingsStore.KEY_BATTERY_INNER_TEXT_SCALE_PERCENT,
                 SettingsStore.DEFAULT_BATTERY_INNER_TEXT_SCALE_PERCENT, 50, 200, "%");
-        activity.addDivider(content);
-        activity.addApplySliderRow(content, "电池主体宽度",
-                "默认 100%。One UI 和两种带电池帽样式都生效。",
-                SettingsStore.KEY_BATTERY_BODY_WIDTH_PERCENT,
-                SettingsStore.DEFAULT_BATTERY_BODY_WIDTH_PERCENT, 50, 150, "%");
-        activity.addApplySliderRow(content, "电池主体高度",
-                "默认 100%。调整主体高度，不改变状态栏图标占用大小。",
-                SettingsStore.KEY_BATTERY_BODY_HEIGHT_PERCENT,
-                SettingsStore.DEFAULT_BATTERY_BODY_HEIGHT_PERCENT, 50, 150, "%");
-        activity.addApplySliderRow(content, "电池圆角",
-                "默认值保持当前样式外观；0% 为直角，200% 为最大圆角。",
-                SettingsStore.KEY_BATTERY_CORNER_RADIUS_PERCENT,
-                SettingsStore.DEFAULT_BATTERY_CORNER_RADIUS_PERCENT, 0, 200, "%");
-        activity.addApplySliderRow(content, "电池帽宽度",
-                "默认 100%。仅类 IOS 和 IOS 旧版样式生效。",
-                SettingsStore.KEY_BATTERY_CAP_WIDTH_PERCENT,
-                SettingsStore.DEFAULT_BATTERY_CAP_WIDTH_PERCENT, 50, 150, "%");
+        content.addView(batterySizingOptions, PageViewUtils.matchWrap());
+        updateBatteryOptionsVisibility();
         return activity.buildSectionCard("图标缩放",
                 "统一控制右上角系统状态图标，以及代码绘制开启后的电池图标和信号图标。通知图标、隐私权限标识和隐私圆点不在这里面。",
                 content);
