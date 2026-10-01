@@ -1,9 +1,12 @@
 package com.example.flymestatusbarsizer;
 
+import android.content.ComponentName;
+import android.content.pm.PackageManager;
 import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.LinearLayout;
+import android.widget.Switch;
 import android.widget.TextView;
 
 final class AboutPageController {
@@ -11,8 +14,41 @@ final class AboutPageController {
     }
 
     static void bind(MainActivity activity, LinearLayout root) {
-        root.addView(buildProjectCard(activity), PageViewUtils.matchWrap());
+        root.addView(buildAppCard(activity), PageViewUtils.matchWrap());
+        root.addView(buildProjectCard(activity), PageViewUtils.matchWrapWithTop(activity, 8));
         root.addView(buildBuildCard(activity), PageViewUtils.matchWrapWithTop(activity, 8));
+    }
+
+    private static View buildAppCard(MainActivity activity) {
+        PackageManager packageManager = activity.getPackageManager();
+        ComponentName launcher = new ComponentName(activity, MainActivity.class.getName() + "Alias");
+        Switch toggle = new Switch(activity);
+        activity.styleSwitch(toggle);
+        toggle.setText("隐藏桌面图标");
+        toggle.setTextColor(activity.textColor());
+        toggle.setTextSize(16);
+        toggle.setMinHeight(PageViewUtils.dp(activity, 44));
+        toggle.setChecked(packageManager.getComponentEnabledSetting(launcher)
+                == PackageManager.COMPONENT_ENABLED_STATE_DISABLED);
+        toggle.setOnCheckedChangeListener((button, hidden) -> {
+            if (hidden == (packageManager.getComponentEnabledSetting(launcher)
+                    == PackageManager.COMPONENT_ENABLED_STATE_DISABLED)) {
+                return;
+            }
+            activity.performTapHaptic(button);
+            try {
+                packageManager.setComponentEnabledSetting(launcher,
+                        hidden ? PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+                                : PackageManager.COMPONENT_ENABLED_STATE_DEFAULT,
+                        PackageManager.DONT_KILL_APP);
+            } catch (IllegalArgumentException | SecurityException e) {
+                button.setChecked(packageManager.getComponentEnabledSetting(launcher)
+                        == PackageManager.COMPONENT_ENABLED_STATE_DISABLED);
+                activity.showToast("桌面图标设置失败");
+            }
+        });
+        return activity.buildSectionCard("应用设置",
+                "隐藏后，可从 LSPosed 的模块页面打开设置，关闭此开关即可恢复图标。", toggle);
     }
 
     private static View buildProjectCard(MainActivity activity) {
