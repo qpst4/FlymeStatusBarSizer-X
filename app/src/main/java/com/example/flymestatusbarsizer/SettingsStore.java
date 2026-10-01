@@ -9,6 +9,11 @@ import java.util.Locale;
 import java.util.Map;
 
 final class SettingsStore {
+    // 0 = system, 1 = black, 2 = white. Order matches the scene settings card.
+    static final String[] STATUS_BAR_TINT_KEYS = {
+            "status_bar_tint_home", "status_bar_tint_recents", "status_bar_tint_shade",
+            "status_bar_tint_control_center", "status_bar_tint_lockscreen"
+    };
     static final String PREFS = "status_bar_sizer";
     static final String KEY_POSITION_OFFSET_STORAGE_VERSION = "__position_offset_storage_version";
     static final int POSITION_OFFSET_STORAGE_VERSION_LEGACY_DP = 0;
@@ -490,6 +495,8 @@ final class SettingsStore {
     static final int DEFAULT_TELEPHONY_DEBUG_SLOT2_NETWORK_PROFILE = TELEPHONY_DEBUG_NETWORK_PROFILE_4G;
     static final int DEFAULT_TELEPHONY_DEBUG_SLOT2_SIGNAL_LEVEL = 2;
     static final String[] INT_KEYS = {
+            STATUS_BAR_TINT_KEYS[0], STATUS_BAR_TINT_KEYS[1], STATUS_BAR_TINT_KEYS[2],
+            STATUS_BAR_TINT_KEYS[3], STATUS_BAR_TINT_KEYS[4],
             KEY_POSITION_OFFSET_STORAGE_VERSION,
             KEY_BATTERY_ICON_STYLE,
             KEY_BATTERY_TEXT_FONT,

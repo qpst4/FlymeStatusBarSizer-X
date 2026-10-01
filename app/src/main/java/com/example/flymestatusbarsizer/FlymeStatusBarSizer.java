@@ -253,6 +253,7 @@ public class FlymeStatusBarSizer extends XposedModule {
     }
 
     private void hookSystemUi(ClassLoader loader) {
+        StatusBarTintHooks.installSystemUi(this, loader);
         installStatusBarHooks(loader);
         installSignalHooks(loader);
         NotificationHooks.install(this, loader);
@@ -262,6 +263,7 @@ public class FlymeStatusBarSizer extends XposedModule {
     }
 
     private void hookFlymeLauncher(ClassLoader loader) {
+        StatusBarTintHooks.installLauncher(this, loader);
         LauncherOrganizer.install(this, loader);
         LauncherAppearanceHooks.install(this, loader);
         LauncherRecentsHooks.install(this, loader);
@@ -6474,6 +6476,7 @@ public class FlymeStatusBarSizer extends XposedModule {
     }
 
     private static void refreshTrackedRuntimeViews(boolean forceSignalRequery) {
+        StatusBarTintHooks.refresh();
         clearBatteryTintSourceCache();
         clearSignalSubSlotIndexCache();
         ConnectionRateHooks.refreshTrackedViews();

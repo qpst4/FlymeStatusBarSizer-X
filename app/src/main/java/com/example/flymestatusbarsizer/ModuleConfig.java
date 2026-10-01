@@ -24,6 +24,7 @@ final class ModuleConfig {
     private static final Runnable CONFIG_CHANGE_DISPATCH_RUNNABLE = ModuleConfig::notifyConfigChanged;
 
     boolean enabled = SettingsStore.DEFAULT_ENABLED;
+    final int[] statusBarTintModes = new int[SettingsStore.STATUS_BAR_TINT_KEYS.length];
     boolean batteryCodeDrawEnabled = SettingsStore.DEFAULT_BATTERY_CODE_DRAW_ENABLED;
     boolean cameraCircleBatteryEnabled = SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_ENABLED;
     boolean cameraCircleBatteryHideIconEnabled =
@@ -369,6 +370,10 @@ final class ModuleConfig {
         try {
             ModuleConfig config = new ModuleConfig();
             config.enabled = SettingsStore.readBoolean(prefs, SettingsStore.KEY_ENABLED, SettingsStore.DEFAULT_ENABLED);
+            for (int i = 0; i < config.statusBarTintModes.length; i++) {
+                int mode = SettingsStore.readInt(prefs, SettingsStore.STATUS_BAR_TINT_KEYS[i], 0);
+                config.statusBarTintModes[i] = mode == 1 || mode == 2 ? mode : 0;
+            }
             config.batteryCodeDrawEnabled = SettingsStore.readBoolean(
                     prefs,
                     SettingsStore.KEY_BATTERY_CODE_DRAW_ENABLED,
