@@ -7,6 +7,8 @@ import static org.junit.Assert.assertTrue;
 
 import android.content.res.ColorStateList;
 import android.graphics.Canvas;
+import android.graphics.Bitmap;
+import android.graphics.Path;
 import android.graphics.ColorFilter;
 import android.graphics.Paint;
 import android.graphics.PorterDuff;
@@ -25,14 +27,14 @@ import org.robolectric.annotation.GraphicsMode;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Compares exact Canvas commands, including paint properties, against the pre-refactor style. */
+/** Verifies rounded geometry and preserves legacy layout, tint and signal mapping. */
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 28, manifest = Config.NONE)
 @GraphicsMode(GraphicsMode.Mode.LEGACY)
 @ConscryptMode(ConscryptMode.Mode.OFF) // Drawing tests do not need host-specific TLS native libraries.
 public final class WifiRenderingTest {
     @Test
-    public void rendererMatchesLegacyForSingleAndDualWifi() {
+    public void roundedRendererPreservesLegacyLayoutAndColors() {
         WifiIconRenderer renderer = WifiIconStyles.createRenderer(WifiIconStyles.CLASSIC);
         int[] levels = {-1, 0, 1, 2, 3, 4, 9};
         int[] colors = {0xffffffff, 0xff000000, 0x80224466};
@@ -60,7 +62,7 @@ public final class WifiRenderingTest {
                                                     + ", offset=" + offset + ", level=" + level
                                                     + ", secondary=" + secondary + ", color=" + color
                                                     + ", alpha=" + alpha,
-                                            expected.arcs, actual.arcs);
+                                            colors(expected), colors(actual));
                                     assertEquals(dual ? 6 : 3, actual.arcs.size());
                                     cases++;
                                 }
@@ -85,7 +87,7 @@ public final class WifiRenderingTest {
             assertEquals(WifiIconStyles.CLASSIC, renderer.getStyleId());
             RecordingCanvas actual = new RecordingCanvas();
             renderer.draw(actual, bounds, 0xffffffff, 255, null, 1, true, 4, 0f);
-            assertEquals(expected.arcs, actual.arcs);
+            assertEquals(colors(expected), colors(actual));
         }
     }
 
@@ -117,7 +119,7 @@ public final class WifiRenderingTest {
             RecordingCanvas expected = new RecordingCanvas();
             LegacyWifiDrawing.drawPreview(expected, drawable.getBounds(), 0xffffffff, 255,
                     null, 1, dual, 4, 0f);
-            assertEquals(expected.arcs, actual.arcs);
+            assertEquals(colors(expected), colors(actual));
             assertTrue(drawable.matchesConfiguration(WifiIconStyles.CLASSIC, 22, 22, 22));
             int invalidations = callback.invalidations;
             assertFalse(drawable.setStateValues(1, dual, 4, 0f));
@@ -143,11 +145,11 @@ public final class WifiRenderingTest {
                     RecordingCanvas expected = new RecordingCanvas();
                     LegacyWifiDrawing.drawPreview(expected, bounds, 0x80557799, 123,
                             filter, 1, dual, 4, offset);
-                    assertEquals(expected.arcs, actual.arcs);
+                    assertEquals(colors(expected), colors(actual));
                     RecordingCanvas previewCanvas = new RecordingCanvas();
                     preview.draw(previewCanvas, bounds, 0x80557799, 123,
                             filter, 1, dual, 4, offset);
-                    assertEquals(expected.arcs, previewCanvas.arcs);
+                    assertEquals(colors(expected), colors(previewCanvas));
                 }
             }
         }
@@ -191,7 +193,7 @@ public final class WifiRenderingTest {
             RecordingCanvas expected = new RecordingCanvas();
             LegacyWifiDrawing.drawPreview(expected, drawable.getBounds(),
                     state.length == 0 ? 0xff000000 : 0x80ffffff, 128, null, 0, false, 0, 0f);
-            assertEquals(expected.arcs, actual.arcs);
+            assertEquals(colors(expected), colors(actual));
         }
         drawable.setTintList(null);
         drawable.setAlpha(999);
@@ -201,7 +203,7 @@ public final class WifiRenderingTest {
         RecordingCanvas expected = new RecordingCanvas();
         LegacyWifiDrawing.drawPreview(expected, drawable.getBounds(), 0xffffffff,
                 255, null, 0, false, 0, 0f);
-        assertEquals(expected.arcs, actual.arcs);
+        assertEquals(colors(expected), colors(actual));
     }
 
     @Test
@@ -216,7 +218,7 @@ public final class WifiRenderingTest {
             boolean nested;
 
             @Override
-            public void drawArc(RectF oval, float start, float sweep, boolean useCenter, Paint paint) {
+            public void drawPath(Path path, Paint paint) {
                 if (!nested) {
                     nested = true;
                     // A nested render must not overwrite the first renderer's Paint or RectF.
@@ -224,12 +226,109 @@ public final class WifiRenderingTest {
                             new PorterDuffColorFilter(0xff000000, PorterDuff.Mode.SRC_IN),
                             0, false, 0, -4f);
                 }
-                super.drawArc(oval, start, sweep, useCenter, paint);
+                super.drawPath(path, paint);
             }
         };
         first.draw(after, bounds, 0xffffffff, 255, null, 4, true, 1, 0f);
         assertEquals(before.arcs, after.arcs);
         assertEquals(new Rect(7, 13, 51, 57), bounds);
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    public void roundedPixelsStayInsideLegacyShapeAndRetainSymmetry() {
+        org.junit.Assume.assumeFalse("Robolectric native graphics does not support Linux ARM64",
+                System.getProperty("os.name").toLowerCase().contains("linux")
+                        && System.getProperty("os.arch").equals("aarch64"));
+        for (int height : new int[]{22, 66, 220}) {
+            for (boolean dual : new boolean[]{false, true}) {
+                WifiIconRenderer renderer = new ClassicWifiRenderer();
+                int width = renderer.measureWidth(height, dual);
+                Rect bounds = new Rect(8, 8, 8 + width, 8 + height);
+                Bitmap old = Bitmap.createBitmap(width + 16, height + 16, Bitmap.Config.ARGB_8888);
+                Bitmap rounded = Bitmap.createBitmap(width + 16, height + 16, Bitmap.Config.ARGB_8888);
+                LegacyWifiDrawing.drawPreview(new Canvas(old), bounds, 0xffffffff, 255,
+                        null, 4, dual, 4, 0f);
+                renderer.draw(new Canvas(rounded), bounds, 0xffffffff, 255,
+                        null, 4, dual, 4, 0f);
+                long oldCoverage = 0, newCoverage = 0;
+                int changed = 0;
+                for (int y = 0; y < rounded.getHeight(); y++) {
+                    for (int x = 0; x < rounded.getWidth(); x++) {
+                        int a = old.getPixel(x, y) >>> 24;
+                        int b = rounded.getPixel(x, y) >>> 24;
+                        oldCoverage += a;
+                        newCoverage += b;
+                        if (Math.abs(a - b) > 16) changed++;
+                        // Allow rasterizer edge coverage differences, but no new solid pixels outside.
+                        if (b > 128) assertTrue("rounded shape expanded", a > 96);
+                        if (!dual) {
+                            int mirror = rounded.getPixel(rounded.getWidth() - 1 - x, y) >>> 24;
+                            assertEquals("left/right symmetry", b, mirror, 3);
+                        }
+                    }
+                }
+                assertTrue("rounding must visibly remove corners", changed > 0);
+                assertTrue(newCoverage < oldCoverage);
+                assertTrue("preserve visual weight", newCoverage > oldCoverage * 0.90);
+            }
+        }
+    }
+
+    @Test
+    public void appearanceChangesRefreshCachedPathsAndRestoreDefaults() {
+        WifiIconRenderer renderer = new ClassicWifiRenderer();
+        assertFalse(renderer.setAppearance(25, 18, 80));
+        Rect bounds = new Rect(0, 0, 220, 220);
+        RecordingCanvas original = new RecordingCanvas();
+        renderer.draw(original, bounds, 0xffffffff, 255, null, 4, true, 1, 0f);
+        assertTrue(renderer.setAppearance(0, 0, 40));
+        RecordingCanvas sharp = new RecordingCanvas();
+        renderer.draw(sharp, bounds, 0xffffffff, 255, null, 4, true, 1, 0f);
+        assertEquals(colors(original), colors(sharp));
+        assertFalse("geometry must update even when bounds/levels are unchanged",
+                original.arcs.equals(sharp.arcs));
+        assertTrue(renderer.setAppearance(45, 30, 120));
+        assertFalse("out-of-range input clamps to supported maximum",
+                renderer.setAppearance(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE));
+        RecordingCanvas maximum = new RecordingCanvas();
+        renderer.draw(maximum, bounds, 0xffffffff, 255, null, 4, true, 1, 0f);
+        assertEquals(6, maximum.arcs.size());
+        for (Arc arc : maximum.arcs) {
+            assertTrue(Float.isFinite(arc.left) && Float.isFinite(arc.top));
+            assertTrue(arc.right > arc.left && arc.bottom > arc.top);
+        }
+        assertTrue(renderer.setAppearance(25, 18, 80));
+        RecordingCanvas restored = new RecordingCanvas();
+        renderer.draw(restored, bounds, 0xffffffff, 255, null, 4, true, 1, 0f);
+        assertEquals(original.arcs, restored.arcs);
+    }
+
+    @Test
+    public void zeroCornerSettingsPreserveSharpSectorTip() {
+        WifiIconRenderer renderer = new ClassicWifiRenderer();
+        renderer.setAppearance(0, 0, 80);
+        RecordingCanvas sharp = new RecordingCanvas();
+        renderer.draw(sharp, new Rect(0, 0, 220, 220), 0xffffffff, 255,
+                null, 4, false, 0, 0f);
+        renderer.setAppearance(0, 30, 80);
+        RecordingCanvas rounded = new RecordingCanvas();
+        renderer.draw(rounded, new Rect(0, 0, 220, 220), 0xffffffff, 255,
+                null, 4, false, 0, 0f);
+        assertEquals(sharp.arcs.get(0), rounded.arcs.get(0));
+        assertEquals(sharp.arcs.get(1), rounded.arcs.get(1));
+        assertTrue("only the rounded tip moves inward",
+                rounded.arcs.get(2).bottom < sharp.arcs.get(2).bottom);
+    }
+
+    private record ColorState(int color, boolean antiAlias, ColorFilter filter) { }
+
+    private static List<ColorState> colors(RecordingCanvas canvas) {
+        List<ColorState> result = new ArrayList<>();
+        for (Arc arc : canvas.arcs) {
+            result.add(new ColorState(arc.color, arc.antiAlias, arc.filter));
+        }
+        return result;
     }
 
     private static WifiIconDrawable drawable(int level, boolean dual, int secondary, float offset) {
@@ -251,6 +350,17 @@ public final class WifiRenderingTest {
 
     private static class RecordingCanvas extends Canvas {
         final List<Arc> arcs = new ArrayList<>();
+
+        @Override
+        public void drawPath(Path path, Paint paint) {
+            assertEquals(Paint.Style.FILL, paint.getStyle());
+            RectF bounds = new RectF();
+            path.computeBounds(bounds, true);
+            assertFalse(path.isEmpty());
+            arcs.add(new Arc(bounds.left, bounds.top, bounds.right, bounds.bottom, 0f, 0f,
+                    false, paint.getColor(), 0f, paint.getStyle(), paint.getStrokeCap(),
+                    paint.isAntiAlias(), paint.getColorFilter()));
+        }
 
         @Override
         public void drawArc(RectF oval, float startAngle, float sweepAngle, boolean useCenter,

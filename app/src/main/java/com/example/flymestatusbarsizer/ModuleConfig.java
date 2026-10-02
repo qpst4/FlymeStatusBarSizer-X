@@ -45,6 +45,9 @@ final class ModuleConfig {
     String signalMobileTypeBadgeNon5gText =
             SettingsStore.DEFAULT_SIGNAL_MOBILE_TYPE_BADGE_NON_5G_TEXT;
     boolean wifiCodeDrawEnabled = SettingsStore.DEFAULT_WIFI_CODE_DRAW_ENABLED;
+    int wifiBandCornerPercent = SettingsStore.DEFAULT_WIFI_BAND_CORNER_PERCENT;
+    int wifiTipCornerPercent = SettingsStore.DEFAULT_WIFI_TIP_CORNER_PERCENT;
+    int wifiBandGapPercent = SettingsStore.DEFAULT_WIFI_BAND_GAP_PERCENT;
     int wifiIconStyle = SettingsStore.DEFAULT_WIFI_ICON_STYLE;
     boolean signalWifiSwapEnabled = SettingsStore.DEFAULT_SIGNAL_WIFI_SWAP_ENABLED;
     int signalBar1HeightPercent = SettingsStore.DEFAULT_SIGNAL_BAR1_HEIGHT_PERCENT;
@@ -440,6 +443,15 @@ final class ModuleConfig {
                     prefs,
                     SettingsStore.KEY_WIFI_ICON_STYLE,
                     SettingsStore.DEFAULT_WIFI_ICON_STYLE));
+            config.wifiBandCornerPercent = Math.max(0, Math.min(45, SettingsStore.readInt(
+                    prefs, SettingsStore.KEY_WIFI_BAND_CORNER_PERCENT,
+                    SettingsStore.DEFAULT_WIFI_BAND_CORNER_PERCENT)));
+            config.wifiTipCornerPercent = Math.max(0, Math.min(30, SettingsStore.readInt(
+                    prefs, SettingsStore.KEY_WIFI_TIP_CORNER_PERCENT,
+                    SettingsStore.DEFAULT_WIFI_TIP_CORNER_PERCENT)));
+            config.wifiBandGapPercent = Math.max(40, Math.min(120, SettingsStore.readInt(
+                    prefs, SettingsStore.KEY_WIFI_BAND_GAP_PERCENT,
+                    SettingsStore.DEFAULT_WIFI_BAND_GAP_PERCENT)));
             config.signalWifiSwapEnabled = SettingsStore.readBoolean(
                     prefs,
                     SettingsStore.KEY_SIGNAL_WIFI_SWAP_ENABLED,

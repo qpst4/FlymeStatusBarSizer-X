@@ -1183,9 +1183,8 @@ public class MainActivity extends Activity {
         valueView.setBackground(roundRect(colorSurfaceSoft, 16));
         valueView.setMinHeight(dp(36));
         valueView.setGravity(Gravity.CENTER);
-        int clamped = SettingsStore.normalizeLauncherStackParameter(
-                key,
-                readIntSetting(key, defaultValue));
+        int clamped = Math.max(min, Math.min(max, SettingsStore.normalizeLauncherStackParameter(
+                key, readIntSetting(key, defaultValue))));
         valueView.setText(formatValue(clamped, suffix));
         header.addView(valueView, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -1234,7 +1233,8 @@ public class MainActivity extends Activity {
                     putIntSetting(key, value);
                 }));
         setTapClickListener(resetButton, v -> {
-            int value = SettingsStore.normalizeLauncherStackParameter(key, defaultValue);
+            int value = Math.max(min, Math.min(max,
+                    SettingsStore.normalizeLauncherStackParameter(key, defaultValue)));
             valueView.setText(formatValue(value, suffix));
             seekBar.setProgress(value - min);
             putIntSetting(key, value);

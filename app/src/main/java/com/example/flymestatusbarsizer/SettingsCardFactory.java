@@ -248,10 +248,36 @@ final class SettingsCardFactory {
         badgeTextOptionsLp.leftMargin = activity.dp(12);
         content.addView(badgeTextOptions, badgeTextOptionsLp);
         activity.addDivider(content);
+        LinearLayout wifiAppearance = new LinearLayout(activity);
+        wifiAppearance.setOrientation(LinearLayout.VERTICAL);
+        wifiAppearance.addView(new WifiAppearancePreviewView(activity, activity.prefs(),
+                activity.textColor()), new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, activity.dp(112)));
+        activity.addDefaultableSliderRow(wifiAppearance, "弧带圆角",
+                "两条弧带端部及底部扇形顶部两角的圆润程度，按弧带线宽计算。0% 为直角。",
+                SettingsStore.KEY_WIFI_BAND_CORNER_PERCENT,
+                SettingsStore.DEFAULT_WIFI_BAND_CORNER_PERCENT, 0, 45, "%");
+        activity.addDefaultableSliderRow(wifiAppearance, "底部圆角",
+                "底部尖角的圆润程度，按弧带线宽计算。0% 为尖角。",
+                SettingsStore.KEY_WIFI_TIP_CORNER_PERCENT,
+                SettingsStore.DEFAULT_WIFI_TIP_CORNER_PERCENT, 0, 30, "%");
+        activity.addDefaultableSliderRow(wifiAppearance, "层间距",
+                "层间空隙与弧带线宽的比例。保持图标总高度，间距增大时弧带会相应变细。",
+                SettingsStore.KEY_WIFI_BAND_GAP_PERCENT,
+                SettingsStore.DEFAULT_WIFI_BAND_GAP_PERCENT, 40, 120, "%");
+        View wifiAppearanceCard = activity.buildSectionCard("Wi-Fi 外观",
+                "拖动自动保存，点击数值可精确输入；双 Wi-Fi 同步调整。预览为放大效果。",
+                wifiAppearance);
+        wifiAppearanceCard.setVisibility(SettingsStore.readBoolean(activity.prefs(),
+                SettingsStore.KEY_WIFI_CODE_DRAW_ENABLED,
+                SettingsStore.DEFAULT_WIFI_CODE_DRAW_ENABLED) ? View.VISIBLE : View.GONE);
         activity.addSwitchRow(content, "重绘 Wi-Fi 图标",
                 "在信号总开关开启时，单独控制是否继续接管 Wi-Fi 图标。",
                 SettingsStore.KEY_WIFI_CODE_DRAW_ENABLED,
-                SettingsStore.DEFAULT_WIFI_CODE_DRAW_ENABLED);
+                SettingsStore.DEFAULT_WIFI_CODE_DRAW_ENABLED,
+                (buttonView, isChecked) -> wifiAppearanceCard.setVisibility(
+                        isChecked ? View.VISIBLE : View.GONE));
+        content.addView(wifiAppearanceCard, activity.matchWrapWithTop(10));
         activity.addDivider(content);
         activity.addSwitchRow(content, "交换 Wi-Fi 与信号位置",
                 "让 Wi-Fi 图标显示在电池和移动信号之间。",

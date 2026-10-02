@@ -48,6 +48,9 @@ final class SettingsStore {
     static final String KEY_SIGNAL_MOBILE_TYPE_BADGE_NON_5G_TEXT =
             "signal_mobile_type_badge_non_5g_text";
     static final String KEY_WIFI_CODE_DRAW_ENABLED = "wifi_code_draw_enabled";
+    static final String KEY_WIFI_BAND_CORNER_PERCENT = "wifi_band_corner_percent";
+    static final String KEY_WIFI_TIP_CORNER_PERCENT = "wifi_tip_corner_percent";
+    static final String KEY_WIFI_BAND_GAP_PERCENT = "wifi_band_gap_percent";
     static final String KEY_WIFI_ICON_STYLE = "wifi_icon_style";
     static final String KEY_SIGNAL_WIFI_SWAP_ENABLED = "signal_wifi_swap_enabled";
     static final String KEY_SIGNAL_BAR1_HEIGHT_PERCENT = "signal_bar1_height_percent";
@@ -311,6 +314,9 @@ final class SettingsStore {
     static final String DEFAULT_SIGNAL_MOBILE_TYPE_BADGE_5GA_TEXT = "5GA";
     static final String DEFAULT_SIGNAL_MOBILE_TYPE_BADGE_NON_5G_TEXT = "";
     static final boolean DEFAULT_WIFI_CODE_DRAW_ENABLED = true;
+    static final int DEFAULT_WIFI_BAND_CORNER_PERCENT = 25;
+    static final int DEFAULT_WIFI_TIP_CORNER_PERCENT = 18;
+    static final int DEFAULT_WIFI_BAND_GAP_PERCENT = 80;
     static final int DEFAULT_WIFI_ICON_STYLE = WifiIconStyles.DEFAULT;
     static final boolean DEFAULT_SIGNAL_WIFI_SWAP_ENABLED = false;
     static final int BATTERY_STYLE_IOS = 0;
@@ -503,6 +509,9 @@ final class SettingsStore {
             STATUS_BAR_TINT_KEYS[3], STATUS_BAR_TINT_KEYS[4],
             KEY_POSITION_OFFSET_STORAGE_VERSION,
             KEY_WIFI_ICON_STYLE,
+            KEY_WIFI_BAND_CORNER_PERCENT,
+            KEY_WIFI_TIP_CORNER_PERCENT,
+            KEY_WIFI_BAND_GAP_PERCENT,
             KEY_BATTERY_ICON_STYLE,
             KEY_BATTERY_TEXT_FONT,
             KEY_CAMERA_CIRCLE_BATTERY_RADIUS_PERCENT,
@@ -859,6 +868,9 @@ final class SettingsStore {
                 return POSITION_OFFSET_STORAGE_VERSION_CAMERA_HUNDREDTH_DP;
             case KEY_BATTERY_ICON_STYLE:
                 return DEFAULT_BATTERY_ICON_STYLE;
+            case KEY_WIFI_BAND_CORNER_PERCENT: return DEFAULT_WIFI_BAND_CORNER_PERCENT;
+            case KEY_WIFI_TIP_CORNER_PERCENT: return DEFAULT_WIFI_TIP_CORNER_PERCENT;
+            case KEY_WIFI_BAND_GAP_PERCENT: return DEFAULT_WIFI_BAND_GAP_PERCENT;
             case KEY_WIFI_ICON_STYLE:
                 return DEFAULT_WIFI_ICON_STYLE;
             case KEY_BATTERY_TEXT_FONT:

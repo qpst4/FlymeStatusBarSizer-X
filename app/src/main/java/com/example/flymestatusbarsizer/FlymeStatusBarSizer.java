@@ -4848,10 +4848,18 @@ public class FlymeStatusBarSizer extends XposedModule {
             // Reuse scratch objects only when reusing their owning drawable.
             if (wifiDrawable.matchesConfiguration(styleId,
                     intrinsicWidth, intrinsicHeight, visualBandHeight)) {
-                return wifiDrawable.getRenderer();
+                WifiIconRenderer renderer = wifiDrawable.getRenderer();
+                if (renderer.setAppearance(config.wifiBandCornerPercent,
+                        config.wifiTipCornerPercent, config.wifiBandGapPercent)) {
+                    wifiDrawable.invalidateSelf();
+                }
+                return renderer;
             }
         }
-        return WifiIconStyles.createRenderer(styleId);
+        WifiIconRenderer renderer = WifiIconStyles.createRenderer(styleId);
+        renderer.setAppearance(config.wifiBandCornerPercent,
+                config.wifiTipCornerPercent, config.wifiBandGapPercent);
+        return renderer;
     }
 
     private static void syncWifiIconLayout(ImageView view, ModuleConfig config,

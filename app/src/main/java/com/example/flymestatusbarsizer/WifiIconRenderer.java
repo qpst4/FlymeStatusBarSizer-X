@@ -9,6 +9,9 @@ interface WifiIconRenderer {
     /** Stable style identity used when selecting and reusing a drawable. */
     int getStyleId();
 
+    /** Returns true when geometry settings changed. Values are percentages of band thickness. */
+    boolean setAppearance(int bandCornerPercent, int tipCornerPercent, int bandGapPercent);
+
     /** Layout width at the given icon box height, including the optional secondary glyph. */
     int measureWidth(int boxHeight, boolean showSecondaryBadge);
 
