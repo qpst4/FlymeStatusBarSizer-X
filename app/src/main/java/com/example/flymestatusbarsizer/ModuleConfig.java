@@ -45,6 +45,7 @@ final class ModuleConfig {
     String signalMobileTypeBadgeNon5gText =
             SettingsStore.DEFAULT_SIGNAL_MOBILE_TYPE_BADGE_NON_5G_TEXT;
     boolean wifiCodeDrawEnabled = SettingsStore.DEFAULT_WIFI_CODE_DRAW_ENABLED;
+    int wifiIconStyle = SettingsStore.DEFAULT_WIFI_ICON_STYLE;
     boolean signalWifiSwapEnabled = SettingsStore.DEFAULT_SIGNAL_WIFI_SWAP_ENABLED;
     int signalBar1HeightPercent = SettingsStore.DEFAULT_SIGNAL_BAR1_HEIGHT_PERCENT;
     int signalBar2HeightPercent = SettingsStore.DEFAULT_SIGNAL_BAR2_HEIGHT_PERCENT;
@@ -435,6 +436,10 @@ final class ModuleConfig {
                     prefs,
                     SettingsStore.KEY_WIFI_CODE_DRAW_ENABLED,
                     SettingsStore.DEFAULT_WIFI_CODE_DRAW_ENABLED);
+            config.wifiIconStyle = WifiIconStyles.normalize(SettingsStore.readInt(
+                    prefs,
+                    SettingsStore.KEY_WIFI_ICON_STYLE,
+                    SettingsStore.DEFAULT_WIFI_ICON_STYLE));
             config.signalWifiSwapEnabled = SettingsStore.readBoolean(
                     prefs,
                     SettingsStore.KEY_SIGNAL_WIFI_SWAP_ENABLED,

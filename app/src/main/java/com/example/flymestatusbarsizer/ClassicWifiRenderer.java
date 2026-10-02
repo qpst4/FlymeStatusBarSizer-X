@@ -33,6 +33,11 @@ final class ClassicWifiRenderer implements WifiIconRenderer {
     }
 
     @Override
+    public int getStyleId() {
+        return WifiIconStyles.CLASSIC;
+    }
+
+    @Override
     public int measureWidth(int boxHeight, boolean showSecondaryBadge) {
         int height = Math.max(1, boxHeight);
         return showSecondaryBadge
@@ -40,7 +45,7 @@ final class ClassicWifiRenderer implements WifiIconRenderer {
                 : height;
     }
 
-    static float resolveMergedBoxWidthRatio() {
+    private static float resolveMergedBoxWidthRatio() {
         float canvasHeight = 1f / 1.8f;
         float canvasWidth = canvasHeight * VISUAL_ASPECT_RATIO;
         float maxOuterBoundary = Math.min(canvasHeight, canvasWidth * SQRT_TWO / 2f);

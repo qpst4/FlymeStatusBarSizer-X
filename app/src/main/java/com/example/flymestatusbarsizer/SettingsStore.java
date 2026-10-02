@@ -48,6 +48,7 @@ final class SettingsStore {
     static final String KEY_SIGNAL_MOBILE_TYPE_BADGE_NON_5G_TEXT =
             "signal_mobile_type_badge_non_5g_text";
     static final String KEY_WIFI_CODE_DRAW_ENABLED = "wifi_code_draw_enabled";
+    static final String KEY_WIFI_ICON_STYLE = "wifi_icon_style";
     static final String KEY_SIGNAL_WIFI_SWAP_ENABLED = "signal_wifi_swap_enabled";
     static final String KEY_SIGNAL_BAR1_HEIGHT_PERCENT = "signal_bar1_height_percent";
     static final String KEY_SIGNAL_BAR2_HEIGHT_PERCENT = "signal_bar2_height_percent";
@@ -310,6 +311,7 @@ final class SettingsStore {
     static final String DEFAULT_SIGNAL_MOBILE_TYPE_BADGE_5GA_TEXT = "5GA";
     static final String DEFAULT_SIGNAL_MOBILE_TYPE_BADGE_NON_5G_TEXT = "";
     static final boolean DEFAULT_WIFI_CODE_DRAW_ENABLED = true;
+    static final int DEFAULT_WIFI_ICON_STYLE = WifiIconStyles.DEFAULT;
     static final boolean DEFAULT_SIGNAL_WIFI_SWAP_ENABLED = false;
     static final int BATTERY_STYLE_IOS = 0;
     static final int BATTERY_STYLE_ONEUI = 1;
@@ -500,6 +502,7 @@ final class SettingsStore {
             STATUS_BAR_TINT_KEYS[0], STATUS_BAR_TINT_KEYS[1], STATUS_BAR_TINT_KEYS[2],
             STATUS_BAR_TINT_KEYS[3], STATUS_BAR_TINT_KEYS[4],
             KEY_POSITION_OFFSET_STORAGE_VERSION,
+            KEY_WIFI_ICON_STYLE,
             KEY_BATTERY_ICON_STYLE,
             KEY_BATTERY_TEXT_FONT,
             KEY_CAMERA_CIRCLE_BATTERY_RADIUS_PERCENT,
@@ -856,6 +859,8 @@ final class SettingsStore {
                 return POSITION_OFFSET_STORAGE_VERSION_CAMERA_HUNDREDTH_DP;
             case KEY_BATTERY_ICON_STYLE:
                 return DEFAULT_BATTERY_ICON_STYLE;
+            case KEY_WIFI_ICON_STYLE:
+                return DEFAULT_WIFI_ICON_STYLE;
             case KEY_BATTERY_TEXT_FONT:
                 return DEFAULT_BATTERY_TEXT_FONT;
             case KEY_CAMERA_CIRCLE_BATTERY_RADIUS_PERCENT:

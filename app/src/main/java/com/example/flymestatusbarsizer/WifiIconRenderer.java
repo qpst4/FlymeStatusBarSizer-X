@@ -6,6 +6,9 @@ import android.graphics.Rect;
 
 /** A Wi-Fi style's drawing contract, shared by the drawable and settings preview. */
 interface WifiIconRenderer {
+    /** Stable style identity used when selecting and reusing a drawable. */
+    int getStyleId();
+
     /** Layout width at the given icon box height, including the optional secondary glyph. */
     int measureWidth(int boxHeight, boolean showSecondaryBadge);
 

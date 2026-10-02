@@ -2,6 +2,7 @@ package com.example.flymestatusbarsizer;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertTrue;
 
 import android.content.res.ColorStateList;
@@ -32,7 +33,7 @@ import java.util.List;
 public final class WifiRenderingTest {
     @Test
     public void rendererMatchesLegacyForSingleAndDualWifi() {
-        WifiIconRenderer renderer = new ClassicWifiRenderer();
+        WifiIconRenderer renderer = WifiIconStyles.createRenderer(WifiIconStyles.CLASSIC);
         int[] levels = {-1, 0, 1, 2, 3, 4, 9};
         int[] colors = {0xffffffff, 0xff000000, 0x80224466};
         int[] alphas = {0, 127, 255};
@@ -70,6 +71,58 @@ public final class WifiRenderingTest {
             }
         }
         assertEquals(15120, cases);
+    }
+
+    @Test
+    public void unknownStylesFallBackToClassic() {
+        RecordingCanvas expected = new RecordingCanvas();
+        Rect bounds = new Rect(0, 0, 44, 44);
+        LegacyWifiDrawing.drawPreview(expected, bounds, 0xffffffff, 255,
+                null, 1, true, 4, 0f);
+        for (int styleId : new int[]{WifiIconStyles.CLASSIC, -1, 99, Integer.MAX_VALUE}) {
+            assertEquals(WifiIconStyles.CLASSIC, WifiIconStyles.normalize(styleId));
+            WifiIconRenderer renderer = WifiIconStyles.createRenderer(styleId);
+            assertEquals(WifiIconStyles.CLASSIC, renderer.getStyleId());
+            RecordingCanvas actual = new RecordingCanvas();
+            renderer.draw(actual, bounds, 0xffffffff, 255, null, 1, true, 4, 0f);
+            assertEquals(expected.arcs, actual.arcs);
+        }
+    }
+
+    @Test
+    public void drawableReuseRequiresSameStyleAndGeometry() {
+        WifiIconDrawable drawable = drawable(1, false, 0, 0f);
+        assertTrue(drawable.matchesConfiguration(WifiIconStyles.CLASSIC, 22, 22, 22));
+        // A future style with the same dimensions must replace the old drawable.
+        assertFalse(drawable.matchesConfiguration(99, 22, 22, 22));
+        assertFalse(drawable.matchesConfiguration(WifiIconStyles.CLASSIC, 23, 22, 22));
+        assertFalse(drawable.matchesConfiguration(WifiIconStyles.CLASSIC, 22, 23, 22));
+        assertFalse(drawable.matchesConfiguration(WifiIconStyles.CLASSIC, 22, 22, 23));
+    }
+
+    @Test
+    public void singleAndDualWifiTransitionsReuseDrawableAndMeasureMatchingWidth() {
+        WifiIconDrawable drawable = drawable(1, false, 0, 0f);
+        Counter callback = new Counter();
+        drawable.setCallback(callback);
+        WifiIconRenderer renderer = drawable.getRenderer();
+        for (boolean dual : new boolean[]{true, false, true}) {
+            assertTrue(drawable.setStateValues(1, dual, 4, 0f));
+            int expectedWidth = dual ? Math.max(44, Math.round(44
+                    * LegacyWifiDrawing.resolveMergedBoxWidthRatio())) : 44;
+            assertEquals(expectedWidth, renderer.measureWidth(44, dual));
+            drawable.setBounds(0, 0, expectedWidth, 44);
+            RecordingCanvas actual = new RecordingCanvas();
+            drawable.draw(actual);
+            RecordingCanvas expected = new RecordingCanvas();
+            LegacyWifiDrawing.drawPreview(expected, drawable.getBounds(), 0xffffffff, 255,
+                    null, 1, dual, 4, 0f);
+            assertEquals(expected.arcs, actual.arcs);
+            assertTrue(drawable.matchesConfiguration(WifiIconStyles.CLASSIC, 22, 22, 22));
+            int invalidations = callback.invalidations;
+            assertFalse(drawable.setStateValues(1, dual, 4, 0f));
+            assertEquals(invalidations, callback.invalidations);
+        }
     }
 
     @Test
@@ -112,7 +165,7 @@ public final class WifiRenderingTest {
         assertEquals(1, callback.invalidations);
         assertFalse(drawable.setStateValues(1, true, 4, 2.5f));
         assertEquals(1, callback.invalidations);
-        assertTrue(drawable.matchesGeometry(22, 22, 22));
+        assertTrue(drawable.matchesConfiguration(WifiIconStyles.CLASSIC, 22, 22, 22));
         RecordingCanvas after = new RecordingCanvas();
         drawable.draw(after);
         assertEquals(before.arcs.size(), after.arcs.size());
@@ -153,8 +206,9 @@ public final class WifiRenderingTest {
 
     @Test
     public void drawingDoesNotMutateCallerBoundsOrLeakPaintBetweenInstances() {
-        WifiIconRenderer first = new ClassicWifiRenderer();
-        WifiIconRenderer second = new ClassicWifiRenderer();
+        WifiIconRenderer first = WifiIconStyles.createRenderer(WifiIconStyles.CLASSIC);
+        WifiIconRenderer second = WifiIconStyles.createRenderer(WifiIconStyles.CLASSIC);
+        assertNotSame(first, second);
         Rect bounds = new Rect(7, 13, 51, 57);
         RecordingCanvas before = new RecordingCanvas();
         first.draw(before, bounds, 0xffffffff, 255, null, 4, true, 1, 0f);
@@ -179,7 +233,7 @@ public final class WifiRenderingTest {
     }
 
     private static WifiIconDrawable drawable(int level, boolean dual, int secondary, float offset) {
-        return new WifiIconDrawable(new ClassicWifiRenderer(), 22, 22, 22,
+        return new WifiIconDrawable(WifiIconStyles.createRenderer(WifiIconStyles.CLASSIC), 22, 22, 22,
                 level, dual, secondary, offset);
     }
 

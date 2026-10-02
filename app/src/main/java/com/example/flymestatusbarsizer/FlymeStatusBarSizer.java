@@ -4755,7 +4755,6 @@ public class FlymeStatusBarSizer extends XposedModule {
         long startNs = debug ? SystemClock.elapsedRealtimeNanos() : 0L;
         ModuleConfig config = ModuleConfig.load(view.getContext());
         boolean mergedDualWifi = shouldMergeDualWifiIntoPrimary(config);
-        syncWifiIconLayout(view, config, mergedDualWifi);
         if (!isWifiCodeDrawEnabled(config)) {
             if (debug) {
                 logWifiPerf(eventId, "override.skip",
@@ -4766,6 +4765,8 @@ public class FlymeStatusBarSizer extends XposedModule {
             }
             return;
         }
+        WifiIconRenderer renderer = resolveWifiIconRenderer(view, config);
+        syncWifiIconLayout(view, config, mergedDualWifi, renderer);
         int level = resolveWifiLevel(view, resId, icon, drawable);
         String slot = resolveWifiSlot(view);
         boolean showSecondaryBadge = mergedDualWifi && WIFI_SLOT_PRIMARY.equals(slot);
@@ -4778,7 +4779,8 @@ public class FlymeStatusBarSizer extends XposedModule {
         Drawable current = view.getDrawable();
         if (current instanceof WifiIconDrawable) {
             WifiIconDrawable wifiDrawable = (WifiIconDrawable) current;
-            if (wifiDrawable.matchesGeometry(intrinsicWidth, intrinsicHeight, visualBandHeight)) {
+            if (wifiDrawable.matchesConfiguration(renderer.getStyleId(),
+                    intrinsicWidth, intrinsicHeight, visualBandHeight)) {
                 boolean changed = wifiDrawable.setStateValues(
                         level, showSecondaryBadge, secondaryLevel, verticalOffsetPx);
                 if (debug) {
@@ -4794,7 +4796,7 @@ public class FlymeStatusBarSizer extends XposedModule {
                 return;
             }
         }
-        WifiIconDrawable wifiDrawable = new WifiIconDrawable(new ClassicWifiRenderer(),
+        WifiIconDrawable wifiDrawable = new WifiIconDrawable(renderer,
                 intrinsicWidth, intrinsicHeight, visualBandHeight,
                 level, showSecondaryBadge, secondaryLevel, verticalOffsetPx);
         wifiDrawable.setAlpha(view.getImageAlpha());
@@ -4828,11 +4830,32 @@ public class FlymeStatusBarSizer extends XposedModule {
     }
 
     private static void syncWifiIconLayout(ImageView view, ModuleConfig config) {
-        syncWifiIconLayout(view, config, shouldMergeDualWifiIntoPrimary(config));
+        if (view == null || !isWifiCodeDrawEnabled(config)) {
+            return;
+        }
+        syncWifiIconLayout(view, config, shouldMergeDualWifiIntoPrimary(config),
+                resolveWifiIconRenderer(view, config));
+    }
+
+    private static WifiIconRenderer resolveWifiIconRenderer(ImageView view, ModuleConfig config) {
+        int styleId = WifiIconStyles.normalize(config.wifiIconStyle);
+        Drawable current = view.getDrawable();
+        if (current instanceof WifiIconDrawable) {
+            WifiIconDrawable wifiDrawable = (WifiIconDrawable) current;
+            int visualBandHeight = resolveWifiIconVisualBandHeight(view, config);
+            int intrinsicHeight = Math.max(1, visualBandHeight);
+            int intrinsicWidth = resolveWifiIconIntrinsicWidth(view, intrinsicHeight);
+            // Reuse scratch objects only when reusing their owning drawable.
+            if (wifiDrawable.matchesConfiguration(styleId,
+                    intrinsicWidth, intrinsicHeight, visualBandHeight)) {
+                return wifiDrawable.getRenderer();
+            }
+        }
+        return WifiIconStyles.createRenderer(styleId);
     }
 
     private static void syncWifiIconLayout(ImageView view, ModuleConfig config,
-                                           boolean mergedDualWifi) {
+                                           boolean mergedDualWifi, WifiIconRenderer renderer) {
         if (view == null) {
             return;
         }
@@ -4856,10 +4879,10 @@ public class FlymeStatusBarSizer extends XposedModule {
         boolean showSecondaryBadge = mergedDualWifi && WIFI_SLOT_PRIMARY.equals(resolveWifiSlot(view));
         int intrinsicHeight = resolveWifiIconIntrinsicHeight(view);
         int intrinsicWidth = resolveWifiIconIntrinsicWidth(view, intrinsicHeight);
-        int targetWidth = resolveTargetWifiIconBoxWidth(view, config, showSecondaryBadge);
         int targetHeight = resolveTargetWifiIconBoxHeight(view, config);
-        long layoutSignature = getWifiLayoutSignature(config, intrinsicWidth, intrinsicHeight,
-                targetWidth, targetHeight, showSecondaryBadge);
+        int targetWidth = renderer.measureWidth(targetHeight, showSecondaryBadge);
+        long layoutSignature = getWifiLayoutSignature(config, renderer.getStyleId(),
+                intrinsicWidth, intrinsicHeight, targetWidth, targetHeight, showSecondaryBadge);
         Long previousSignature = WIFI_LAYOUT_SIGNATURES.get(view);
         if (previousSignature != null && previousSignature.longValue() == layoutSignature) {
             if (debug) {
@@ -4871,7 +4894,7 @@ public class FlymeStatusBarSizer extends XposedModule {
             }
             return;
         }
-        resizeWifiIconView(view, config, showSecondaryBadge);
+        resizeWifiIconView(view, targetWidth, targetHeight);
         WIFI_LAYOUT_SIGNATURES.put(view, layoutSignature);
         if (debug) {
             logWifiPerf(eventId, "layout.apply",
@@ -4882,7 +4905,7 @@ public class FlymeStatusBarSizer extends XposedModule {
         }
     }
 
-    private static void resizeWifiIconView(ImageView view, ModuleConfig config, boolean showSecondaryBadge) {
+    private static void resizeWifiIconView(ImageView view, int targetWidth, int targetHeight) {
         if (view == null) {
             return;
         }
@@ -4890,8 +4913,6 @@ public class FlymeStatusBarSizer extends XposedModule {
         if (lp == null) {
             return;
         }
-        int targetWidth = resolveTargetWifiIconBoxWidth(view, config, showSecondaryBadge);
-        int targetHeight = resolveTargetWifiIconBoxHeight(view, config);
         boolean changed = false;
         if (lp.width != targetWidth) {
             lp.width = targetWidth;
@@ -4942,16 +4963,6 @@ public class FlymeStatusBarSizer extends XposedModule {
                 resolveStatusBarIconScale(config));
     }
 
-    private static int resolveTargetWifiIconBoxWidth(ImageView view, ModuleConfig config,
-                                                     boolean showSecondaryBadge) {
-        int targetHeight = resolveTargetWifiIconBoxHeight(view, config);
-        if (!showSecondaryBadge) {
-            return targetHeight;
-        }
-        return Math.max(targetHeight,
-                Math.round(targetHeight * ClassicWifiRenderer.resolveMergedBoxWidthRatio()));
-    }
-
     private static int resolveWifiIconIntrinsicHeight(ImageView view) {
         if (view == null) {
             return 1;
@@ -4970,10 +4981,12 @@ public class FlymeStatusBarSizer extends XposedModule {
                 resolveStatusBarIconScale(config));
     }
 
-    private static long getWifiLayoutSignature(ModuleConfig config, int intrinsicWidth, int intrinsicHeight,
+    private static long getWifiLayoutSignature(ModuleConfig config, int styleId,
+                                               int intrinsicWidth, int intrinsicHeight,
                                                int targetWidth, int targetHeight,
                                                boolean showSecondaryBadge) {
         long signature = 17L;
+        signature = signature * 31L + styleId;
         signature = signature * 31L + SettingsStore.normalizeScalePercent(config == null
                 ? SettingsStore.DEFAULT_STATUS_BAR_ICON_SCALE_PERCENT
                 : config.statusBarIconScalePercent);

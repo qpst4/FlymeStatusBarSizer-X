@@ -42,8 +42,15 @@ final class WifiIconDrawable extends Drawable {
         this.verticalOffsetPx = verticalOffsetPx;
     }
 
-    boolean matchesGeometry(int intrinsicWidth, int intrinsicHeight, int visualBandHeight) {
-        return this.intrinsicWidth == Math.max(1, intrinsicWidth)
+    /** The owning view also uses this instance to measure its layout. */
+    WifiIconRenderer getRenderer() {
+        return renderer;
+    }
+
+    boolean matchesConfiguration(int styleId, int intrinsicWidth, int intrinsicHeight,
+            int visualBandHeight) {
+        return renderer.getStyleId() == styleId
+                && this.intrinsicWidth == Math.max(1, intrinsicWidth)
                 && this.intrinsicHeight == Math.max(1, intrinsicHeight)
                 && this.visualBandHeight == Math.max(1, visualBandHeight);
     }
