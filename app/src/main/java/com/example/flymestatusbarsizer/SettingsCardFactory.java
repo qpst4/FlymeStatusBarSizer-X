@@ -198,13 +198,32 @@ final class SettingsCardFactory {
         activity.addDivider(content);
         LinearLayout signalAppearance = new LinearLayout(activity);
         signalAppearance.setOrientation(LinearLayout.VERTICAL);
-        activity.addSliderRow(signalAppearance, "第一根信号柱高度", "相对最高柱高度百分比。", SettingsStore.KEY_SIGNAL_BAR1_HEIGHT_PERCENT, SettingsStore.DEFAULT_SIGNAL_BAR1_HEIGHT_PERCENT, 0, 100, "%");
-        activity.addSliderRow(signalAppearance, "第二根信号柱高度", "相对最高柱高度百分比。", SettingsStore.KEY_SIGNAL_BAR2_HEIGHT_PERCENT, SettingsStore.DEFAULT_SIGNAL_BAR2_HEIGHT_PERCENT, 0, 100, "%");
-        activity.addSliderRow(signalAppearance, "第三根信号柱高度", "相对最高柱高度百分比。", SettingsStore.KEY_SIGNAL_BAR3_HEIGHT_PERCENT, SettingsStore.DEFAULT_SIGNAL_BAR3_HEIGHT_PERCENT, 0, 100, "%");
-        activity.addSliderRow(signalAppearance, "信号柱圆角", "信号柱圆角比例。", SettingsStore.KEY_SIGNAL_BAR_CORNER_RADIUS_PERCENT, SettingsStore.DEFAULT_SIGNAL_BAR_CORNER_RADIUS_PERCENT, 0, 100, "%");
-        activity.addSliderRow(signalAppearance, "双卡圆点圆角", "双卡合一圆点的圆角比例。", SettingsStore.KEY_SIGNAL_DOT_CORNER_RADIUS_PERCENT, SettingsStore.DEFAULT_SIGNAL_DOT_CORNER_RADIUS_PERCENT, 0, 100, "%");
+        signalAppearance.addView(new SignalAppearancePreviewView(activity, activity.prefs(),
+                activity.textColor()), new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, activity.dp(112)));
+        activity.addDefaultableSliderRow(signalAppearance, "第一根信号柱高度",
+                "相对最高柱高度百分比；0% 隐藏此柱。",
+                SettingsStore.KEY_SIGNAL_BAR1_HEIGHT_PERCENT,
+                SettingsStore.DEFAULT_SIGNAL_BAR1_HEIGHT_PERCENT, 0, 100, "%");
+        activity.addDefaultableSliderRow(signalAppearance, "第二根信号柱高度",
+                "相对最高柱高度百分比；0% 隐藏此柱。",
+                SettingsStore.KEY_SIGNAL_BAR2_HEIGHT_PERCENT,
+                SettingsStore.DEFAULT_SIGNAL_BAR2_HEIGHT_PERCENT, 0, 100, "%");
+        activity.addDefaultableSliderRow(signalAppearance, "第三根信号柱高度",
+                "相对最高柱高度百分比；0% 隐藏此柱。",
+                SettingsStore.KEY_SIGNAL_BAR3_HEIGHT_PERCENT,
+                SettingsStore.DEFAULT_SIGNAL_BAR3_HEIGHT_PERCENT, 0, 100, "%");
+        activity.addDefaultableSliderRow(signalAppearance, "信号柱圆角",
+                "0% 为直角，100% 为全圆角；圆角会适应每根柱子的宽高。",
+                SettingsStore.KEY_SIGNAL_BAR_CORNER_RADIUS_PERCENT,
+                SettingsStore.DEFAULT_SIGNAL_BAR_CORNER_RADIUS_PERCENT, 0, 100, "%");
+        activity.addDefaultableSliderRow(signalAppearance, "双卡圆点圆角",
+                "调整双卡合一下方的副卡信号点；0% 为方形，100% 为圆形。",
+                SettingsStore.KEY_SIGNAL_DOT_CORNER_RADIUS_PERCENT,
+                SettingsStore.DEFAULT_SIGNAL_DOT_CORNER_RADIUS_PERCENT, 0, 100, "%");
         content.addView(activity.buildSectionCard("信号外观",
-                "调整信号柱高度、信号柱圆角和双卡圆点圆角。", signalAppearance),
+                "拖动自动保存，点击数值可精确输入，也可恢复默认。预览为放大效果，双卡示例为主卡 3 格、副卡 2 格。",
+                signalAppearance),
                 PageViewUtils.matchWrap());
         activity.addDivider(content);
         LinearLayout badgeTextOptions = new LinearLayout(activity);

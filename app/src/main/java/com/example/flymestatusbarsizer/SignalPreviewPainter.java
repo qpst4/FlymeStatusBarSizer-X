@@ -18,9 +18,15 @@ final class SignalPreviewPainter {
     private static final int SIGNAL_DRAW_ALPHA = 224;
     private static final float INACTIVE_SIGNAL_ALPHA_RATIO = 0.3f;
     private static final float SIGNAL_ASPECT_RATIO = 1.5f;
-    private static volatile float[] barHeightRatios = new float[]{0.375f, 0.5833333f, 0.7916667f, 1f};
-    private static volatile float barCornerRatio = 0.5f;
-    private static volatile float dotCornerRatio = 1f;
+    private static final float SIGNAL_BAR_GAP_RATIO = 0.08f;
+    private static volatile float[] barHeightRatios = new float[]{
+            SettingsStore.DEFAULT_SIGNAL_BAR1_HEIGHT_PERCENT / 100f,
+            SettingsStore.DEFAULT_SIGNAL_BAR2_HEIGHT_PERCENT / 100f,
+            SettingsStore.DEFAULT_SIGNAL_BAR3_HEIGHT_PERCENT / 100f, 1f};
+    private static volatile float barCornerRatio =
+            SettingsStore.DEFAULT_SIGNAL_BAR_CORNER_RADIUS_PERCENT / 100f;
+    private static volatile float dotCornerRatio =
+            SettingsStore.DEFAULT_SIGNAL_DOT_CORNER_RADIUS_PERCENT / 100f;
     private static final float MOBILE_TYPE_GAP_RATIO = 0.07f;
     private static final float MOBILE_TYPE_5GA_TRAILING_PADDING_RATIO = 0.08f;
     private static final Paint PAINT = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -50,10 +56,15 @@ final class SignalPreviewPainter {
 
     static void configureStyle(ModuleConfig config) {
         if (config == null) return;
-        barHeightRatios = new float[]{config.signalBar1HeightPercent / 100f,
-                config.signalBar2HeightPercent / 100f, config.signalBar3HeightPercent / 100f, 1f};
-        barCornerRatio = config.signalBarCornerRadiusPercent / 100f;
-        dotCornerRatio = config.signalDotCornerRadiusPercent / 100f;
+        barHeightRatios = new float[]{percentToRatio(config.signalBar1HeightPercent),
+                percentToRatio(config.signalBar2HeightPercent),
+                percentToRatio(config.signalBar3HeightPercent), 1f};
+        barCornerRatio = percentToRatio(config.signalBarCornerRadiusPercent);
+        dotCornerRatio = percentToRatio(config.signalDotCornerRadiusPercent);
+    }
+
+    private static float percentToRatio(int percent) {
+        return Math.max(0, Math.min(100, percent)) / 100f;
     }
 
     static void drawSingleSim(Canvas canvas, Rect bounds, int color) {
@@ -254,15 +265,21 @@ final class SignalPreviewPainter {
         if (geometry == null) {
             return;
         }
-        float radius = Math.min(geometry.barWidth, geometry.unitY * 3.2f) * 0.52f * barCornerRatio;
         int activeCount = clampSignalLevel(signalLevel);
 
         PAINT.setStyle(Paint.Style.FILL);
         PAINT.setColorFilter(colorFilter);
         for (int i = 0; i < geometry.heights.length; i++) {
+            float height = geometry.heights[i];
+            if (height <= 0f) {
+                continue;
+            }
+            // Keep circular corners even on very short bars instead of relying on
+            // Canvas to clamp an oversized radius differently on each axis.
+            float radius = Math.min(geometry.barWidth, height) * 0.5f * barCornerRatio;
             PAINT.setColor(i < activeCount ? activeColor : inactiveColor);
             float barLeft = geometry.startLeft + i * (geometry.barWidth + geometry.gap);
-            float barTop = geometry.baseBottom - geometry.heights[i];
+            float barTop = geometry.baseBottom - height;
             BAR.set(barLeft, barTop, barLeft + geometry.barWidth, geometry.baseBottom);
             canvas.drawRoundRect(BAR, radius, radius, PAINT);
         }
@@ -518,16 +535,14 @@ final class SignalPreviewPainter {
         float baselineY = VISUAL_CANVAS.baselineY;
 
         SignalGeometry geometry = new SignalGeometry();
-        geometry.unitX = visualWidth;
-        geometry.unitY = visualHeight;
-        geometry.gap = visualWidth * (mergedDual ? 0.07f : 0.08f);
+        geometry.gap = visualWidth * SIGNAL_BAR_GAP_RATIO;
         geometry.barWidth = (visualWidth - geometry.gap * 3f) / 4f;
         geometry.startLeft = visualLeft;
         if (mergedDual) {
             float dotRadius = geometry.barWidth / 2f;
             geometry.dotCenterY = baselineY - dotRadius;
             geometry.baseBottom = baselineY - dotRadius * 2f - visualHeight * 0.08f;
-            float barAreaHeight = Math.max(1f, geometry.baseBottom - visualTop);
+            float barAreaHeight = Math.max(0f, geometry.baseBottom - visualTop);
             geometry.heights = buildBarHeights(barAreaHeight);
         } else {
             geometry.baseBottom = baselineY;
@@ -538,7 +553,7 @@ final class SignalPreviewPainter {
     }
 
     private static float[] buildBarHeights(float maxHeight) {
-        float safeMaxHeight = Math.max(1f, maxHeight);
+        float safeMaxHeight = Math.max(0f, maxHeight);
         return new float[]{
                 safeMaxHeight * barHeightRatios[0], safeMaxHeight * barHeightRatios[1],
                 safeMaxHeight * barHeightRatios[2], safeMaxHeight
@@ -546,8 +561,6 @@ final class SignalPreviewPainter {
     }
 
     private static final class SignalGeometry {
-        float unitX;
-        float unitY;
         float baseBottom;
         float dotCenterY;
         float barWidth;
