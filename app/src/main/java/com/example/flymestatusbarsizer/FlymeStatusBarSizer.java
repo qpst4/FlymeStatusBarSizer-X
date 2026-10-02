@@ -4773,11 +4773,14 @@ public class FlymeStatusBarSizer extends XposedModule {
         int intrinsicHeight = resolveWifiIconIntrinsicHeight(view);
         int visualBandHeight = resolveWifiIconVisualBandHeight(view, config);
         int intrinsicWidth = resolveWifiIconIntrinsicWidth(view, intrinsicHeight);
+        float verticalOffsetPx = SettingsStore.positionOffsetTenthDpToPx(view.getContext(),
+                SettingsStore.normalizeIconYOffsetTenthDp(config.wifiYOffsetTenthDp));
         Drawable current = view.getDrawable();
         if (current instanceof WifiIconDrawable) {
             WifiIconDrawable wifiDrawable = (WifiIconDrawable) current;
             if (wifiDrawable.matchesGeometry(intrinsicWidth, intrinsicHeight, visualBandHeight)) {
-                boolean changed = wifiDrawable.setStateValues(level, showSecondaryBadge, secondaryLevel);
+                boolean changed = wifiDrawable.setStateValues(
+                        level, showSecondaryBadge, secondaryLevel, verticalOffsetPx);
                 if (debug) {
                     logWifiPerf(eventId, "override.reuse",
                             "dur=" + formatDurationNs(SystemClock.elapsedRealtimeNanos() - startNs)
@@ -4791,8 +4794,9 @@ public class FlymeStatusBarSizer extends XposedModule {
                 return;
             }
         }
-        WifiIconDrawable wifiDrawable = new WifiIconDrawable(view, intrinsicWidth, intrinsicHeight,
-                visualBandHeight, level, showSecondaryBadge, secondaryLevel);
+        WifiIconDrawable wifiDrawable = new WifiIconDrawable(new ClassicWifiRenderer(),
+                intrinsicWidth, intrinsicHeight, visualBandHeight,
+                level, showSecondaryBadge, secondaryLevel, verticalOffsetPx);
         wifiDrawable.setAlpha(view.getImageAlpha());
         wifiDrawable.setState(view.getDrawableState());
         wifiDrawable.setTintList(view.getImageTintList());
@@ -4945,7 +4949,7 @@ public class FlymeStatusBarSizer extends XposedModule {
             return targetHeight;
         }
         return Math.max(targetHeight,
-                Math.round(targetHeight * WifiIconDrawable.resolveMergedBoxWidthRatio()));
+                Math.round(targetHeight * ClassicWifiRenderer.resolveMergedBoxWidthRatio()));
     }
 
     private static int resolveWifiIconIntrinsicHeight(ImageView view) {

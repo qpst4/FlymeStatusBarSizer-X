@@ -28,6 +28,7 @@ public final class RightIconGroupPreviewView extends View {
     private final Rect singleSignalRect = new Rect();
     private final Rect mergedSignalRect = new Rect();
     private final Rect wifiRect = new Rect();
+    private final WifiIconRenderer wifiRenderer = new ClassicWifiRenderer();
 
     private int previewTintColor = DEFAULT_TEXT_COLOR;
     private int batteryStyle = SettingsStore.DEFAULT_BATTERY_ICON_STYLE;
@@ -334,9 +335,10 @@ public final class RightIconGroupPreviewView extends View {
                     offsetPx(signalBadgeYOffsetTenthDp));
         }
         currentRight = signalLeft - dp(8);
-        int wifiLeft = Math.round(currentRight - iconSize);
-        wifiRect.set(wifiLeft, iconTop, wifiLeft + iconSize, iconTop + iconSize);
-        WifiIconDrawable.drawPreview(canvas, wifiRect, previewTintColor, 255, null,
+        int wifiWidth = wifiRenderer.measureWidth(iconSize, false);
+        int wifiLeft = Math.round(currentRight - wifiWidth);
+        wifiRect.set(wifiLeft, iconTop, wifiLeft + wifiWidth, iconTop + iconSize);
+        wifiRenderer.draw(canvas, wifiRect, previewTintColor, 255, null,
                 4, false, 0, offsetPx(wifiYOffsetTenthDp));
     }
 
