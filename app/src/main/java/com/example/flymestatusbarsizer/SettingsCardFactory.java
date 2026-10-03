@@ -45,7 +45,7 @@ final class SettingsCardFactory {
                 SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_HIDE_ICON_ENABLED,
                 (buttonView, isChecked) -> updateBatteryOptionsVisibility());
         activity.addSwitchRow(circleBatteryOptions, "彩虹色",
-                "让环形电池普通电量显示动态彩虹渐变。",
+                "普通电量时使用动态彩虹渐变，覆盖正常状态的自定义颜色；充电、省电和低电量仍使用各自的颜色。",
                 SettingsStore.KEY_CAMERA_CIRCLE_BATTERY_TINT_ENABLED,
                 SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_TINT_ENABLED);
         activity.addDivider(circleBatteryOptions);
@@ -61,8 +61,9 @@ final class SettingsCardFactory {
                 SettingsStore.KEY_CAMERA_CIRCLE_BATTERY_STROKE_PERCENT,
                 SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_STROKE_PERCENT,
                 50, 300, "%");
+        new CircleBatteryAppearanceEditor(activity).addTo(circleAppearance);
         circleBatteryOptions.addView(activity.buildSectionCard("环形电池外观",
-                "调整摄像头环形电池的半径和线条粗细。", circleAppearance),
+                "调整半径、粗细、透明度和各状态颜色。状态优先级：充电 ＞ 低电量 ＞ 省电 ＞ 正常。", circleAppearance),
                 PageViewUtils.matchWrap());
         LinearLayout.LayoutParams circleBatteryOptionsLp = activity.matchWrapWithTop(10);
         circleBatteryOptionsLp.leftMargin = activity.dp(12);

@@ -25,6 +25,7 @@ final class SettingsStore {
     static final int CAMERA_CIRCLE_BATTERY_OFFSET_MIN_TENTH_DP = -3000;
     static final int CAMERA_CIRCLE_BATTERY_OFFSET_MAX_TENTH_DP = 3000;
 
+    static final String KEY_COLOR_PICKER_PALETTE = "color_picker_palette";
     static final String KEY_ENABLED = "enabled";
     static final String KEY_STATUS_BAR_TINT_ENABLED = "status_bar_tint_enabled";
     static final String KEY_BATTERY_CODE_DRAW_ENABLED = "battery_code_draw_enabled";
@@ -33,6 +34,18 @@ final class SettingsStore {
             "camera_circle_battery_hide_icon_enabled";
     static final String KEY_CAMERA_CIRCLE_BATTERY_TINT_ENABLED =
             "camera_circle_battery_tint_enabled";
+    static final String KEY_CAMERA_CIRCLE_BATTERY_TRANSPARENCY_TENTH_PERCENT =
+            "camera_circle_battery_transparency_tenth_percent";
+    static final String KEY_CAMERA_CIRCLE_BATTERY_NORMAL_LIGHT_COLOR =
+            "camera_circle_battery_normal_light_color";
+    static final String KEY_CAMERA_CIRCLE_BATTERY_NORMAL_DARK_COLOR =
+            "camera_circle_battery_normal_dark_color";
+    static final String KEY_CAMERA_CIRCLE_BATTERY_CHARGING_COLOR =
+            "camera_circle_battery_charging_color";
+    static final String KEY_CAMERA_CIRCLE_BATTERY_POWER_SAVE_COLOR =
+            "camera_circle_battery_power_save_color";
+    static final String KEY_CAMERA_CIRCLE_BATTERY_LOW_COLOR =
+            "camera_circle_battery_low_color";
     static final String KEY_CAMERA_CIRCLE_BATTERY_RADIUS_PERCENT =
             "camera_circle_battery_radius_percent";
     static final String KEY_CAMERA_CIRCLE_BATTERY_STROKE_PERCENT =
@@ -304,6 +317,12 @@ final class SettingsStore {
     static final boolean DEFAULT_CAMERA_CIRCLE_BATTERY_ENABLED = false;
     static final boolean DEFAULT_CAMERA_CIRCLE_BATTERY_HIDE_ICON_ENABLED = false;
     static final boolean DEFAULT_CAMERA_CIRCLE_BATTERY_TINT_ENABLED = false;
+    static final int DEFAULT_CAMERA_CIRCLE_BATTERY_TRANSPARENCY_TENTH_PERCENT = 118;
+    static final int DEFAULT_CAMERA_CIRCLE_BATTERY_NORMAL_LIGHT_COLOR = 0xFF088BFF;
+    static final int DEFAULT_CAMERA_CIRCLE_BATTERY_NORMAL_DARK_COLOR = 0xFFFFFFFF;
+    static final int DEFAULT_CAMERA_CIRCLE_BATTERY_CHARGING_COLOR = 0xFF20D013;
+    static final int DEFAULT_CAMERA_CIRCLE_BATTERY_POWER_SAVE_COLOR = 0xFFFFAC26;
+    static final int DEFAULT_CAMERA_CIRCLE_BATTERY_LOW_COLOR = 0xFFF6400F;
     static final int DEFAULT_CAMERA_CIRCLE_BATTERY_RADIUS_PERCENT = 100;
     static final int DEFAULT_CAMERA_CIRCLE_BATTERY_STROKE_PERCENT = 100;
     static final int DEFAULT_CAMERA_CIRCLE_BATTERY_X_OFFSET_DP = 0;
@@ -514,6 +533,12 @@ final class SettingsStore {
             KEY_WIFI_BAND_GAP_PERCENT,
             KEY_BATTERY_ICON_STYLE,
             KEY_BATTERY_TEXT_FONT,
+            KEY_CAMERA_CIRCLE_BATTERY_TRANSPARENCY_TENTH_PERCENT,
+            KEY_CAMERA_CIRCLE_BATTERY_NORMAL_LIGHT_COLOR,
+            KEY_CAMERA_CIRCLE_BATTERY_NORMAL_DARK_COLOR,
+            KEY_CAMERA_CIRCLE_BATTERY_CHARGING_COLOR,
+            KEY_CAMERA_CIRCLE_BATTERY_POWER_SAVE_COLOR,
+            KEY_CAMERA_CIRCLE_BATTERY_LOW_COLOR,
             KEY_CAMERA_CIRCLE_BATTERY_RADIUS_PERCENT,
             KEY_CAMERA_CIRCLE_BATTERY_STROKE_PERCENT,
             KEY_CAMERA_CIRCLE_BATTERY_X_OFFSET_DP,
@@ -673,6 +698,7 @@ final class SettingsStore {
     };
 
     static final String[] STRING_KEYS = {
+            KEY_COLOR_PICKER_PALETTE,
             KEY_SIGNAL_MOBILE_TYPE_BADGE_5G_TEXT,
             KEY_SIGNAL_MOBILE_TYPE_BADGE_5GA_TEXT,
             KEY_SIGNAL_MOBILE_TYPE_BADGE_NON_5G_TEXT,
@@ -875,6 +901,18 @@ final class SettingsStore {
                 return DEFAULT_WIFI_ICON_STYLE;
             case KEY_BATTERY_TEXT_FONT:
                 return DEFAULT_BATTERY_TEXT_FONT;
+            case KEY_CAMERA_CIRCLE_BATTERY_TRANSPARENCY_TENTH_PERCENT:
+                return DEFAULT_CAMERA_CIRCLE_BATTERY_TRANSPARENCY_TENTH_PERCENT;
+            case KEY_CAMERA_CIRCLE_BATTERY_NORMAL_LIGHT_COLOR:
+                return DEFAULT_CAMERA_CIRCLE_BATTERY_NORMAL_LIGHT_COLOR;
+            case KEY_CAMERA_CIRCLE_BATTERY_NORMAL_DARK_COLOR:
+                return DEFAULT_CAMERA_CIRCLE_BATTERY_NORMAL_DARK_COLOR;
+            case KEY_CAMERA_CIRCLE_BATTERY_CHARGING_COLOR:
+                return DEFAULT_CAMERA_CIRCLE_BATTERY_CHARGING_COLOR;
+            case KEY_CAMERA_CIRCLE_BATTERY_POWER_SAVE_COLOR:
+                return DEFAULT_CAMERA_CIRCLE_BATTERY_POWER_SAVE_COLOR;
+            case KEY_CAMERA_CIRCLE_BATTERY_LOW_COLOR:
+                return DEFAULT_CAMERA_CIRCLE_BATTERY_LOW_COLOR;
             case KEY_CAMERA_CIRCLE_BATTERY_RADIUS_PERCENT:
                 return DEFAULT_CAMERA_CIRCLE_BATTERY_RADIUS_PERCENT;
             case KEY_CAMERA_CIRCLE_BATTERY_STROKE_PERCENT:
@@ -1185,6 +1223,9 @@ final class SettingsStore {
     }
 
     static String defaultString(String key) {
+        if (KEY_COLOR_PICKER_PALETTE.equals(key)) {
+            return "{}";
+        }
         if (KEY_SIGNAL_MOBILE_TYPE_BADGE_5G_TEXT.equals(key)) {
             return DEFAULT_SIGNAL_MOBILE_TYPE_BADGE_5G_TEXT;
         }

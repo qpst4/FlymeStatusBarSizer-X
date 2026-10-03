@@ -32,6 +32,18 @@ final class ModuleConfig {
             SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_HIDE_ICON_ENABLED;
     boolean cameraCircleBatteryTintEnabled =
             SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_TINT_ENABLED;
+    int cameraCircleBatteryTransparencyTenthPercent =
+            SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_TRANSPARENCY_TENTH_PERCENT;
+    int cameraCircleBatteryNormalLightColor =
+            SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_NORMAL_LIGHT_COLOR;
+    int cameraCircleBatteryNormalDarkColor =
+            SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_NORMAL_DARK_COLOR;
+    int cameraCircleBatteryChargingColor =
+            SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_CHARGING_COLOR;
+    int cameraCircleBatteryPowerSaveColor =
+            SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_POWER_SAVE_COLOR;
+    int cameraCircleBatteryLowColor =
+            SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_LOW_COLOR;
     int cameraCircleBatteryRadiusPercent =
             SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_RADIUS_PERCENT;
     int cameraCircleBatteryStrokePercent =
@@ -397,6 +409,25 @@ final class ModuleConfig {
                     prefs,
                     SettingsStore.KEY_CAMERA_CIRCLE_BATTERY_TINT_ENABLED,
                     SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_TINT_ENABLED);
+            config.cameraCircleBatteryTransparencyTenthPercent = Math.max(0, Math.min(1000,
+                    SettingsStore.readInt(prefs,
+                            SettingsStore.KEY_CAMERA_CIRCLE_BATTERY_TRANSPARENCY_TENTH_PERCENT,
+                            SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_TRANSPARENCY_TENTH_PERCENT)));
+            config.cameraCircleBatteryNormalLightColor = 0xFF000000 | SettingsStore.readInt(prefs,
+                    SettingsStore.KEY_CAMERA_CIRCLE_BATTERY_NORMAL_LIGHT_COLOR,
+                    SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_NORMAL_LIGHT_COLOR);
+            config.cameraCircleBatteryNormalDarkColor = 0xFF000000 | SettingsStore.readInt(prefs,
+                    SettingsStore.KEY_CAMERA_CIRCLE_BATTERY_NORMAL_DARK_COLOR,
+                    SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_NORMAL_DARK_COLOR);
+            config.cameraCircleBatteryChargingColor = 0xFF000000 | SettingsStore.readInt(prefs,
+                    SettingsStore.KEY_CAMERA_CIRCLE_BATTERY_CHARGING_COLOR,
+                    SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_CHARGING_COLOR);
+            config.cameraCircleBatteryPowerSaveColor = 0xFF000000 | SettingsStore.readInt(prefs,
+                    SettingsStore.KEY_CAMERA_CIRCLE_BATTERY_POWER_SAVE_COLOR,
+                    SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_POWER_SAVE_COLOR);
+            config.cameraCircleBatteryLowColor = 0xFF000000 | SettingsStore.readInt(prefs,
+                    SettingsStore.KEY_CAMERA_CIRCLE_BATTERY_LOW_COLOR,
+                    SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_LOW_COLOR);
             config.cameraCircleBatteryRadiusPercent = Math.max(80, Math.min(200,
                     SettingsStore.readInt(
                             prefs,
