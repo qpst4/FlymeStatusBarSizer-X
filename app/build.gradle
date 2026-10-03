@@ -6,9 +6,11 @@ android {
     namespace "com.example.flymestatusbarsizer"
     compileSdk 36
 
-    def buildVersion = new java.text.SimpleDateFormat("yyyyMMddHHmm").format(new Date())
-    def buildCode = Integer.parseInt(new java.text.SimpleDateFormat("yyyyMMddHH").format(new Date()))
-    def buildDate = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date())
+    // 构建时间固定使用北京时间，避免 Gradle Daemon 缓存旧的系统时区。
+    def buildTime = java.time.ZonedDateTime.now(java.time.ZoneId.of("Asia/Shanghai"))
+    def buildVersion = buildTime.format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmm", Locale.ROOT))
+    def buildCode = Integer.parseInt(buildTime.format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHH", Locale.ROOT)))
+    def buildDate = buildTime.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ROOT))
 
     buildFeatures {
         buildConfig true
