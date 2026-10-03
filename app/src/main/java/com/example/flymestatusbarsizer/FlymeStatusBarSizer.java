@@ -325,6 +325,20 @@ public class FlymeStatusBarSizer extends XposedModule {
     private void hookCameraCircleBatterySwitch(ClassLoader loader) {
         try {
             Class<?> clazz = Class.forName(
+                    "com.flyme.statusbar.battery.CircleBatteryLottieAnimationView", false, loader);
+            Method draw = clazz.getDeclaredMethod("onDraw", Canvas.class);
+            draw.setAccessible(true);
+            hook(draw).intercept(chain -> {
+                if (CircleBatteryDynamics.draw(chain.getThisObject(), (Canvas) chain.getArg(0))) return null;
+                return chain.proceed();
+            });
+            CircleBatteryDynamics.enableDrawing();
+        } catch (Throwable t) {
+            log(android.util.Log.WARN, TAG, "Circle battery custom drawing unavailable", t);
+        }
+
+        try {
+            Class<?> clazz = Class.forName(
                     "com.flyme.systemui.camera.CameraStateController", false, loader);
             Method method = clazz.getDeclaredMethod("initBlackWindowLp");
             method.setAccessible(true);
@@ -483,6 +497,7 @@ public class FlymeStatusBarSizer extends XposedModule {
                 if (windowType instanceof Integer && windowState instanceof Integer
                         && ((Integer) windowType) == 1) {
                     STATUS_BAR_WINDOW_SHOWING = ((Integer) windowState) == 0;
+                    CircleBatteryDynamics.setStatusBarVisible(STATUS_BAR_WINDOW_SHOWING);
                     refreshCameraCircleBatteryWindow();
                 }
                 return result;
@@ -6723,6 +6738,7 @@ public class FlymeStatusBarSizer extends XposedModule {
 
     private static void applyCameraCircleBatteryTint(Object view, ModuleConfig config) {
         CircleBatteryAppearance.apply(view, config);
+        CircleBatteryDynamics.update(view, config);
     }
 
     private static void applyCameraCircleBatteryPosition(

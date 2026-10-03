@@ -27,6 +27,7 @@ final class ModuleConfig {
     boolean statusBarTintEnabled = SettingsStore.DEFAULT_STATUS_BAR_TINT_ENABLED;
     final int[] statusBarTintModes = new int[SettingsStore.STATUS_BAR_TINT_KEYS.length];
     boolean batteryCodeDrawEnabled = SettingsStore.DEFAULT_BATTERY_CODE_DRAW_ENABLED;
+    CircleBatteryAnimationConfig circleAnimation = new CircleBatteryAnimationConfig();
     boolean cameraCircleBatteryEnabled = SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_ENABLED;
     boolean cameraCircleBatteryHideIconEnabled =
             SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_HIDE_ICON_ENABLED;
@@ -397,6 +398,7 @@ final class ModuleConfig {
                     prefs,
                     SettingsStore.KEY_BATTERY_CODE_DRAW_ENABLED,
                     SettingsStore.DEFAULT_BATTERY_CODE_DRAW_ENABLED);
+            config.circleAnimation = CircleBatteryAnimationConfig.load(prefs);
             config.cameraCircleBatteryEnabled = SettingsStore.readBoolean(
                     prefs,
                     SettingsStore.KEY_CAMERA_CIRCLE_BATTERY_ENABLED,
@@ -405,10 +407,9 @@ final class ModuleConfig {
                     prefs,
                     SettingsStore.KEY_CAMERA_CIRCLE_BATTERY_HIDE_ICON_ENABLED,
                     SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_HIDE_ICON_ENABLED);
-            config.cameraCircleBatteryTintEnabled = SettingsStore.readBoolean(
-                    prefs,
-                    SettingsStore.KEY_CAMERA_CIRCLE_BATTERY_TINT_ENABLED,
-                    SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_TINT_ENABLED);
+            // Legacy tint is consumed by animation migration; the fallback paint follows the new palette.
+            config.cameraCircleBatteryTintEnabled =
+                    config.circleAnimation.palette == CircleBatteryAnimationConfig.RAINBOW;
             config.cameraCircleBatteryTransparencyTenthPercent = Math.max(0, Math.min(1000,
                     SettingsStore.readInt(prefs,
                             SettingsStore.KEY_CAMERA_CIRCLE_BATTERY_TRANSPARENCY_TENTH_PERCENT,

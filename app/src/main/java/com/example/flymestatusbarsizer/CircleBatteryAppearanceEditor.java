@@ -96,7 +96,7 @@ final class CircleBatteryAppearanceEditor {
         });
     }
 
-    private void addColor(LinearLayout root, String title, String key, int defaultColor) {
+    void addColor(LinearLayout root, String title, String key, int defaultColor) {
         LinearLayout row = row(title);
         TextView button = new TextView(activity);
         button.setTextSize(14);

@@ -1801,6 +1801,16 @@ public class MainActivity extends Activity {
                 }
                 editor.putString(key, settings.optString(key, SettingsStore.defaultString(key)));
             }
+            // Old backups have no animation keys: preserve their static/rainbow behavior.
+            if (!settings.has(CircleBatteryAnimationConfig.VERSION)) {
+                boolean rainbow = settings.optBoolean(SettingsStore.KEY_CAMERA_CIRCLE_BATTERY_TINT_ENABLED, false);
+                for (String key : CircleBatteryAnimationConfig.INT_KEYS) {
+                    editor.putInt(key, CircleBatteryAnimationConfig.migratedInt(key, true, rainbow));
+                }
+                for (String key : CircleBatteryAnimationConfig.BOOLEAN_KEYS) {
+                    editor.putBoolean(key, CircleBatteryAnimationConfig.migratedBoolean(key, true, rainbow));
+                }
+            }
             SettingsStore.markPositionOffsetStorageVersion(editor);
             editor.apply();
             SettingsStore.notifyChanged(this);

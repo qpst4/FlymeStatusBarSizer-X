@@ -1,18 +1,15 @@
 package com.example.flymestatusbarsizer;
 
 import android.graphics.Color;
-import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Shader;
 import android.graphics.SweepGradient;
 import android.view.View;
 
-import java.lang.ref.WeakReference;
 import java.util.WeakHashMap;
 
 /** Applies foreground colors without changing Flyme's native palette or background ring. */
 final class CircleBatteryAppearance {
-    private static final long CAMERA_CIRCLE_RAINBOW_REFRESH_MS = 100L;
     private static final int[] CAMERA_CIRCLE_RAINBOW_COLORS = {
             Color.RED, 0xFFFF9800, Color.YELLOW, Color.GREEN,
             Color.CYAN, Color.BLUE, 0xFF9C27B0, Color.RED
@@ -40,28 +37,12 @@ final class CircleBatteryAppearance {
             view.invalidate();
             return;
         }
-        boolean darkIcons = ReflectUtils.getBooleanField(view, "mIsDark", false);
         boolean charging = ReflectUtils.getBooleanField(view, "mCharging", false);
         boolean powerSave = ReflectUtils.getBooleanField(view, "mLowPowerMode", false);
         Object levelValue = ReflectUtils.getField(view, "mLevel");
         float level = levelValue instanceof Number ? ((Number) levelValue).floatValue() : -1f;
-        int color = darkIcons ? config.cameraCircleBatteryNormalLightColor
-                : config.cameraCircleBatteryNormalDarkColor;
-        boolean normal = true;
-        // Match Flyme: charging > critical (<10%) > power saving > normal.
-        // Unknown battery levels keep the normal palette unless charging.
-        if (charging) {
-            color = config.cameraCircleBatteryChargingColor;
-            normal = false;
-        } else if (level >= 0f) {
-            if (level < 10f) {
-                color = config.cameraCircleBatteryLowColor;
-                normal = false;
-            } else if (powerSave) {
-                color = config.cameraCircleBatteryPowerSaveColor;
-                normal = false;
-            }
-        }
+        int color = foregroundColor(view, config);
+        boolean normal = !charging && (level < 0 || (level >= 10 && !powerSave));
         if (normal && config.cameraCircleBatteryTintEnabled) {
             applyCameraCircleRainbow(view, paint);
         } else {
@@ -76,7 +57,7 @@ final class CircleBatteryAppearance {
     private static void applyCameraCircleRainbow(View view, Paint paint) {
         RainbowBatteryState state = CAMERA_CIRCLE_RAINBOW_STATES.get(view);
         if (state == null) {
-            state = new RainbowBatteryState(view);
+            state = new RainbowBatteryState();
             CAMERA_CIRCLE_RAINBOW_STATES.put(view, state);
         }
         int width = view.getWidth();
@@ -87,47 +68,30 @@ final class CircleBatteryAppearance {
             state.shader = new SweepGradient(width / 2f, height / 2f,
                     CAMERA_CIRCLE_RAINBOW_COLORS, null);
         }
-        state.matrix.setRotate(state.angle, width / 2f, height / 2f);
-        state.shader.setLocalMatrix(state.matrix);
         paint.setShader(state.shader);
         paint.setColor(Color.WHITE);
         view.invalidate();
-        if (!state.scheduled) {
-            state.scheduled = true;
-            view.postDelayed(state.refresh, CAMERA_CIRCLE_RAINBOW_REFRESH_MS);
-        }
     }
 
     private static void stopCameraCircleRainbow(View view, Paint paint) {
-        RainbowBatteryState state = CAMERA_CIRCLE_RAINBOW_STATES.remove(view);
-        if (state != null) {
-            view.removeCallbacks(state.refresh);
-        }
+        CAMERA_CIRCLE_RAINBOW_STATES.remove(view);
         paint.setShader(null);
     }
 
-    private static final class RainbowBatteryState {
-        final WeakReference<View> view;
-        final Matrix matrix = new Matrix();
-        final Runnable refresh;
-        Shader shader;
-        int width;
-        int height;
-        float angle;
-        boolean scheduled;
-
-        RainbowBatteryState(View view) {
-            this.view = new WeakReference<>(view);
-            this.refresh = () -> {
-                View target = this.view.get();
-                scheduled = false;
-                if (target == null || target.getVisibility() != View.VISIBLE) {
-                    return;
-                }
-                angle = (angle + 12f) % 360f;
-                apply(target, ModuleConfig.load(null));
-            };
+    static int foregroundColor(View view, ModuleConfig config) {
+        if (ReflectUtils.getBooleanField(view, "mCharging", false)) return config.cameraCircleBatteryChargingColor;
+        Object raw = ReflectUtils.getField(view, "mLevel");
+        float level = raw instanceof Number ? ((Number) raw).floatValue() : -1;
+        if (level >= 0) {
+            if (level < 10) return config.cameraCircleBatteryLowColor;
+            if (ReflectUtils.getBooleanField(view, "mLowPowerMode", false)) return config.cameraCircleBatteryPowerSaveColor;
         }
+        return ReflectUtils.getBooleanField(view, "mIsDark", false)
+                ? config.cameraCircleBatteryNormalLightColor : config.cameraCircleBatteryNormalDarkColor;
     }
 
+    private static final class RainbowBatteryState {
+        Shader shader;
+        int width, height;
+    }
 }

@@ -524,6 +524,15 @@ final class SettingsStore {
     static final int DEFAULT_TELEPHONY_DEBUG_SLOT2_NETWORK_PROFILE = TELEPHONY_DEBUG_NETWORK_PROFILE_4G;
     static final int DEFAULT_TELEPHONY_DEBUG_SLOT2_SIGNAL_LEVEL = 2;
     static final String[] INT_KEYS = {
+            CircleBatteryAnimationConfig.NORMAL,
+            CircleBatteryAnimationConfig.CHARGING,
+            CircleBatteryAnimationConfig.PALETTE,
+            CircleBatteryAnimationConfig.COLOR_START,
+            CircleBatteryAnimationConfig.COLOR_END,
+            CircleBatteryAnimationConfig.SPEED,
+            CircleBatteryAnimationConfig.STRENGTH,
+            CircleBatteryAnimationConfig.VERSION,
+
             STATUS_BAR_TINT_KEYS[0], STATUS_BAR_TINT_KEYS[1], STATUS_BAR_TINT_KEYS[2],
             STATUS_BAR_TINT_KEYS[3], STATUS_BAR_TINT_KEYS[4],
             KEY_POSITION_OFFSET_STORAGE_VERSION,
@@ -642,6 +651,12 @@ final class SettingsStore {
     };
 
     static final String[] BOOLEAN_KEYS = {
+            CircleBatteryAnimationConfig.ENABLED,
+            CircleBatteryAnimationConfig.CHARGING_ONLY,
+            CircleBatteryAnimationConfig.EVENTS,
+            CircleBatteryAnimationConfig.SMOOTH,
+            CircleBatteryAnimationConfig.LEGACY_RAINBOW,
+
             KEY_ENABLED,
             KEY_STATUS_BAR_TINT_ENABLED,
             KEY_BATTERY_CODE_DRAW_ENABLED,
@@ -805,6 +820,7 @@ final class SettingsStore {
     }
 
     static void prepareRemoteSync(Context context) {
+        CircleBatteryAnimationConfig.migrate(prefs(context));
         migratePositionOffsetStorageIfNeeded(context);
         RemoteSettingsSync.prepare(context);
     }
@@ -889,6 +905,7 @@ final class SettingsStore {
     }
 
     static int defaultInt(String key) {
+        if (CircleBatteryAnimationConfig.isKey(key)) return CircleBatteryAnimationConfig.defaultInt(key);
         switch (key) {
             case KEY_POSITION_OFFSET_STORAGE_VERSION:
                 return POSITION_OFFSET_STORAGE_VERSION_CAMERA_HUNDREDTH_DP;
@@ -1114,6 +1131,7 @@ final class SettingsStore {
     }
 
     static boolean defaultBoolean(String key) {
+        if (CircleBatteryAnimationConfig.isKey(key)) return CircleBatteryAnimationConfig.defaultBoolean(key);
         switch (key) {
             case KEY_ENABLED:
                 return DEFAULT_ENABLED;

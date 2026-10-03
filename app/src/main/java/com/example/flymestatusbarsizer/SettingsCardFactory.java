@@ -44,10 +44,6 @@ final class SettingsCardFactory {
                 SettingsStore.KEY_CAMERA_CIRCLE_BATTERY_HIDE_ICON_ENABLED,
                 SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_HIDE_ICON_ENABLED,
                 (buttonView, isChecked) -> updateBatteryOptionsVisibility());
-        activity.addSwitchRow(circleBatteryOptions, "彩虹色",
-                "普通电量时使用动态彩虹渐变，覆盖正常状态的自定义颜色；充电、省电和低电量仍使用各自的颜色。",
-                SettingsStore.KEY_CAMERA_CIRCLE_BATTERY_TINT_ENABLED,
-                SettingsStore.DEFAULT_CAMERA_CIRCLE_BATTERY_TINT_ENABLED);
         activity.addDivider(circleBatteryOptions);
         LinearLayout circleAppearance = new LinearLayout(activity);
         circleAppearance.setOrientation(LinearLayout.VERTICAL);
@@ -64,6 +60,12 @@ final class SettingsCardFactory {
         new CircleBatteryAppearanceEditor(activity).addTo(circleAppearance);
         circleBatteryOptions.addView(activity.buildSectionCard("环形电池外观",
                 "调整半径、粗细、透明度和各状态颜色。状态优先级：充电 ＞ 低电量 ＞ 省电 ＞ 正常。", circleAppearance),
+                PageViewUtils.matchWrap());
+        LinearLayout dynamics = new LinearLayout(activity);
+        dynamics.setOrientation(LinearLayout.VERTICAL);
+        new CircleBatteryAnimationEditor(activity).addTo(dynamics);
+        circleBatteryOptions.addView(activity.buildSectionCard("动态效果",
+                "日常柔和流动，充电彗星增强。省电、熄屏或隐藏时暂停动画。", dynamics),
                 PageViewUtils.matchWrap());
         LinearLayout.LayoutParams circleBatteryOptionsLp = activity.matchWrapWithTop(10);
         circleBatteryOptionsLp.leftMargin = activity.dp(12);
