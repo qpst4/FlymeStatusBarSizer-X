@@ -2,9 +2,9 @@ package com.example.flymestatusbarsizer;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Set;
-import java.util.TreeMap;
 
 /** Grid calculation without Android state; each rectangle is screen, x, y, width, height. */
 final class LauncherOrganizerLayout {
@@ -43,6 +43,11 @@ final class LauncherOrganizerLayout {
 
     static List<int[]> place(int columns, int rows, List<Integer> screens,
             List<int[]> reserved, List<int[]> sizes) {
+        return place(columns, rows, screens, reserved, sizes, java.util.Collections.emptySet());
+    }
+
+    static List<int[]> place(int columns, int rows, List<Integer> screens,
+            List<int[]> reserved, List<int[]> sizes, Set<Integer> protectedScreens) {
         if (columns < 1 || columns > 20 || rows < 1 || rows > 30 || sizes.size() > 2000) {
             throw new IllegalArgumentException("桌面网格或应用数量不受支持");
         }
@@ -51,7 +56,7 @@ final class LauncherOrganizerLayout {
                 throw new IllegalArgumentException("所选文件夹超出当前桌面网格，请选择较小的类型");
             }
         }
-        TreeMap<Integer, boolean[][]> pages = new TreeMap<>();
+        LinkedHashMap<Integer, boolean[][]> pages = new LinkedHashMap<>();
         for (int screen : screens) {
             if (screen >= 0 && screen < 100_000_000) pages.put(screen, new boolean[columns][rows]);
         }
@@ -65,6 +70,11 @@ final class LauncherOrganizerLayout {
             for (int x = rect[1]; x < rect[1] + rect[3]; x++) {
                 for (int y = rect[2]; y < rect[2] + rect[4]; y++) cells[x][y] = true;
             }
+        }
+        // Protect the whitespace as well as the existing items on a preserved page.
+        for (int screen : protectedScreens) {
+            boolean[][] cells = pages.get(screen);
+            if (cells != null) for (boolean[] column : cells) java.util.Arrays.fill(column, true);
         }
         List<int[]> result = new ArrayList<>();
         while (result.size() < sizes.size()) {
@@ -91,7 +101,7 @@ final class LauncherOrganizerLayout {
                 if (placed) break;
             }
             if (!placed) {
-                int screen = pages.lastKey() + 1;
+                int screen = java.util.Collections.max(pages.keySet()) + 1;
                 if (screen >= 100_000_000) throw new IllegalArgumentException("无法新增桌面页面");
                 pages.put(screen, new boolean[columns][rows]);
             }

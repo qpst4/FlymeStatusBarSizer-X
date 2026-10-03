@@ -58,6 +58,8 @@ final class LauncherOrganizerPage {
     private final EditText customPrompt;
     private final List<View> controls = new ArrayList<>();
     private final List<EditText> names = new ArrayList<>();
+    private final LauncherOrganizerScopeEditor scopeEditor;
+    private LauncherOrganizerScope scope = new LauncherOrganizerScope();
     private JSONObject desktop;
     private JSONArray groups;
     private boolean busy;
@@ -82,6 +84,8 @@ final class LauncherOrganizerPage {
     private LauncherOrganizerPage(MainActivity activity, LinearLayout root) {
         this.activity = activity;
         prefs = activity.getSharedPreferences("launcher_organizer_ai", Context.MODE_PRIVATE);
+        try { scope = new LauncherOrganizerScope(new JSONObject(prefs.getString("scope", ""))); }
+        catch (Exception ignored) { scope = new LauncherOrganizerScope(); }
         LinearLayout settings = column();
         endpoint = input(settings, "接口地址（完整 HTTPS 地址）", "https://服务地址/v1/chat/completions", prefs.getString("endpoint", ""), false);
         model = input(settings, "模型名称", "填写服务商提供的模型名称", prefs.getString("model", ""), false);
@@ -133,18 +137,19 @@ final class LauncherOrganizerPage {
         };
         corePrompt.addTextChangedListener(promptChanges);
         customPrompt.addTextChangedListener(promptChanges);
-        root.addView(activity.buildSectionCard("AI 接口", "使用兼容 Chat Completions 的接口。生成分类时会发送应用名称和包名。", settings), PageViewUtils.matchWrap());
+        root.addView(activity.buildSectionCard("AI 接口", "使用兼容 Chat Completions 的接口。仅发送本次参与整理的应用名称和包名。", settings), PageViewUtils.matchWrap());
         root.addView(activity.buildSectionCard("提示词", "展开后编辑并保存。收起保留当前编辑内容，恢复默认只重置核心提示词。", classification), PageViewUtils.matchWrapWithTop(activity, 8));
         LinearLayout actions = column();
         button(actions, "读取桌面", () -> run(() -> {
             desktop = new JSONObject(command("read", null));
+            scope.retainAvailable(desktop);
             groups = null;
             savePreview();
             return "已读取 " + desktop.getJSONArray("apps").length() + " 个应用";
         }));
         button(actions, "生成 AI 分类", this::generate);
         button(actions, "应用整理", this::confirmApply);
-        status = label(actions, "先读取桌面，再生成分类。", 14);
+        status = label(actions, "先读取桌面，选择整理范围，再生成分类。", 14);
         progress = new ProgressBar(activity, null, android.R.attr.progressBarStyleHorizontal);
         progress.setIndeterminate(true);
         progress.setVisibility(View.GONE);
@@ -152,6 +157,9 @@ final class LauncherOrganizerPage {
         liveOutput = label(actions, "", 14);
         liveOutput.setVisibility(View.GONE);
         root.addView(activity.buildSectionCard("操作", "保留底栏、小组件和特殊快捷方式。单应用分类和未分类应用直接放在桌面。", actions), PageViewUtils.matchWrapWithTop(activity, 8));
+        LinearLayout scopeRoot = column();
+        scopeEditor = new LauncherOrganizerScopeEditor(activity, scopeRoot, this::changeScope);
+        root.addView(activity.buildSectionCard("整理范围", "范围外的内容保持原位，保留整页也保留留白。修改范围后需重新生成分类。", scopeRoot), PageViewUtils.matchWrapWithTop(activity, 8));
         preview = column();
         root.addView(activity.buildSectionCard("分类预览", "文件夹默认按应用数量自动选尺寸，也可手动选择。点击应用可调整归属。", preview), PageViewUtils.matchWrapWithTop(activity, 8));
         try {
@@ -159,10 +167,12 @@ final class LauncherOrganizerPage {
             if (!saved.isEmpty()) {
                 JSONObject data = new JSONObject(saved);
                 desktop = data.getJSONObject("desktop");
+                LauncherOrganizerScope.requireSnapshot(desktop);
+                scope = new LauncherOrganizerScope(data.getJSONObject("scope"));
                 groups = data.optJSONArray("groups");
                 if (groups != null) {
                     cleanGroups();
-                    LauncherOrganizerProvider.validateGroups(desktop.getJSONArray("apps"), groups);
+                    LauncherOrganizerProvider.validateGroups(selectedApps(), groups);
                     savePreview();
                 }
             }
@@ -180,17 +190,20 @@ final class LauncherOrganizerPage {
         if (promptsChanged) { status.setText("提示词有修改，请展开并保存后再生成分类"); return; }
         if (address.isEmpty() || modelName.isEmpty()) { status.setText("请填写接口地址和模型名称"); return; }
         if (systemPrompt.isEmpty()) { status.setText("请填写核心提示词，或点击恢复默认提示词"); return; }
+        final JSONArray selected;
+        try {
+            selected = requireSelectedApps();
+            if (groups != null) { collectNames(); savePreview(); }
+        } catch (Exception error) { status.setText(error.getMessage()); return; }
         configEditor().apply();
         run(() -> {
-            groups = null;
-            savePreview();
-            JSONArray generated = classify(desktop.getJSONArray("apps"), address, modelName, apiKey, systemPrompt, instructions);
+            JSONArray generated = classify(selected, address, modelName, apiKey, systemPrompt, instructions);
             // Publish the parsed result before validation so a malformed AI grouping remains
             // visible for correction instead of looking like no result was generated.
             groups = generated;
             cleanGroups();
             savePreview();
-            List<String> unclassified = LauncherOrganizerProvider.validateGroups(desktop.getJSONArray("apps"), groups);
+            List<String> unclassified = LauncherOrganizerProvider.validateGroups(selected, groups);
             return "已生成 " + groups.length() + " 个分类，未分类 " + unclassified.size() + " 个应用，请预览后应用";
         });
     }
@@ -198,14 +211,17 @@ final class LauncherOrganizerPage {
     private void confirmApply() {
         try {
             if (desktop == null || groups == null) throw new IllegalStateException("请先生成分类");
+            JSONArray selected = requireSelectedApps();
             collectNames();
             cleanGroups();
             renderPreview();
-            LauncherOrganizerProvider.validateGroups(desktop.getJSONArray("apps"), groups);
+            LauncherOrganizerProvider.validateGroups(selected, groups);
             savePreview();
-            String plan = new JSONObject().put("hash", desktop.getString("hash")).put("groups", groups).toString();
+            String plan = new JSONObject().put("hash", desktop.getString("hash")).put("groups", groups)
+                    .put("scope", scope.toJson()).toString();
             new AlertDialog.Builder(activity).setTitle("应用桌面整理")
-                    .setMessage("按预览中的分类和文件夹尺寸重新排列 " + desktop.getJSONArray("apps").length() + " 个应用。")
+                    .setMessage(LauncherOrganizerScopeEditor.summary(desktop, scope)
+                            + "\n\n仅将本次范围内的 " + selected.length() + " 个应用按预览分类排列；范围外内容保持原位。")
                     .setNegativeButton("取消", null)
                     .setPositiveButton("应用", (dialog, which) -> run(() -> {
                         JSONObject current = new JSONObject(command("read", null));
@@ -242,9 +258,7 @@ final class LauncherOrganizerPage {
                 String error = state.getString("error", "");
                 if (!error.isEmpty()) throw new IllegalStateException(error);
                 String result = state.getString("data", "");
-                if ("read".equals(action) && !new JSONObject(result).has("columns")) {
-                    throw new IllegalStateException("桌面仍在运行旧版模块，请重启桌面后重试");
-                }
+                if ("read".equals(action)) LauncherOrganizerScope.requireSnapshot(new JSONObject(result));
                 return result;
             }
             Thread.sleep(250);
@@ -384,6 +398,7 @@ final class LauncherOrganizerPage {
     private void run(Callable<String> work) {
         if (busy) return;
         busy = true;
+        scopeEditor.setBusy(true);
         for (View control : controls) { control.setEnabled(false); control.setAlpha(0.5f); }
         preview.setVisibility(View.GONE);
         phase = "正在准备";
@@ -403,6 +418,7 @@ final class LauncherOrganizerPage {
             activity.runOnUiThread(() -> {
                 if (activity.isDestroyed()) return;
                 busy = false;
+                scopeEditor.setBusy(false);
                 status.removeCallbacks(tick);
                 progress.setVisibility(View.GONE);
                 for (View control : controls) { control.setEnabled(true); control.setAlpha(1f); }
@@ -451,18 +467,19 @@ final class LauncherOrganizerPage {
     }
 
     private void renderPreview() {
+        scopeEditor.render(desktop, scope);
         preview.removeAllViews();
         names.clear();
         if (desktop == null || groups == null) {
-            label(preview, desktop == null ? "读取桌面并生成分类后，在这里预览。" : "已读取桌面，点击“生成 AI 分类”继续。", 14);
+            label(preview, desktop == null ? "读取桌面并生成分类后，在这里预览。" : "选择整理范围后，点击“生成 AI 分类”继续。", 14);
             return;
         }
         try {
             Map<String, String> labels = new LinkedHashMap<>();
             Set<String> assigned = new HashSet<>();
-            JSONArray apps = desktop.getJSONArray("apps");
+            JSONArray apps = selectedApps();
             for (int i = 0; i < apps.length(); i++) labels.put(apps.getJSONObject(i).getString("id"), apps.getJSONObject(i).getString("name"));
-            label(preview, groups.length() + " 个分类 · " + apps.length() + " 个应用", 14);
+            label(preview, groups.length() + " 个分类 · 本次整理 " + apps.length() + " 个应用（范围外内容保持原位）", 14);
             for (int i = 0; i < groups.length(); i++) {
                 JSONObject group = groups.getJSONObject(i);
                 LinearLayout groupView = activity.card(activity.surfaceSoftColor(), 12);
@@ -552,7 +569,7 @@ final class LauncherOrganizerPage {
 
     private void cleanGroups() throws Exception {
         Set<String> remaining = new HashSet<>();
-        JSONArray apps = desktop.getJSONArray("apps");
+        JSONArray apps = selectedApps();
         for (int i = 0; i < apps.length(); i++) remaining.add(apps.getJSONObject(i).getString("id"));
         for (int i = 0; i < groups.length();) {
             JSONArray members = groups.getJSONObject(i).getJSONArray("apps");
@@ -606,7 +623,7 @@ final class LauncherOrganizerPage {
                 if (source == target || (source < 0 && target == groups.length())) return;
                 try {
                     JSONArray from = source < 0 ? null : groups.getJSONObject(source).getJSONArray("apps");
-                    String id = from == null ? desktop.getJSONArray("apps").getJSONObject(member).getString("id") : from.getString(member);
+                    String id = from == null ? selectedApps().getJSONObject(member).getString("id") : from.getString(member);
                     if (target < groups.length()) groups.getJSONObject(target).getJSONArray("apps").put(id);
                     if (from != null) {
                         from.remove(member);
@@ -673,7 +690,30 @@ final class LauncherOrganizerPage {
 
     private void savePreview() throws Exception {
         prefs.edit().putString("preview", desktop == null ? "" : new JSONObject().put("desktop", desktop)
-                .put("groups", groups == null ? JSONObject.NULL : groups).toString()).apply();
+                .put("groups", groups == null ? JSONObject.NULL : groups).put("scope", scope.toJson()).toString())
+                .putString("scope", scope.toJson().toString()).apply();
+    }
+
+    private JSONArray selectedApps() throws Exception { return scope.selectedApps(desktop); }
+
+    private JSONArray requireSelectedApps() throws Exception {
+        JSONArray apps = selectedApps();
+        if (apps.length() == 0) throw new IllegalStateException("当前范围没有可整理的应用，请调整整理方式或保留选项");
+        return apps;
+    }
+
+    private void changeScope(LauncherOrganizerScope next) {
+        if (busy || desktop == null) return;
+        try {
+            if (scope.toJson().toString().equals(next.toJson().toString())) return;
+            scope = next;
+            groups = null;
+            liveText = "";
+            liveOutput.setVisibility(View.GONE);
+            savePreview();
+            status.setText("整理范围已更新，请重新生成分类。范围外的内容保持原位。");
+            renderPreview();
+        } catch (Exception error) { status.setText(error.getMessage()); }
     }
 
     private LinearLayout column() {

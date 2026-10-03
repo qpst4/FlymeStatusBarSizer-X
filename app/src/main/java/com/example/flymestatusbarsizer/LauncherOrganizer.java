@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -86,16 +87,17 @@ final class LauncherOrganizer {
                     && !(boolean) call(activity, "isInEditMode")
                     && !(boolean) call(call(activity, "getDragController"), "isDragging");
             Object profile = call(activity, "getDeviceProfile");
+            int[] screenOrder = screenOrder(activity);
             Executor executor = (Executor) Class.forName(BASE + "util.Executors", false, activity.getClassLoader())
                     .getField("MODEL_EXECUTOR").get(null);
-            executor.execute(() -> execute(activity, profile, ready));
+            executor.execute(() -> execute(activity, profile, ready, screenOrder));
         } catch (Throwable error) {
             BUSY.set(false);
             FlymeStatusBarSizer.logLauncherWarning("Desktop organizer dispatch failed", error);
         }
     }
 
-    private static void execute(Activity activity, Object profile, boolean ready) {
+    private static void execute(Activity activity, Object profile, boolean ready, int[] screenOrder) {
         String id = null;
         Bundle reply = new Bundle();
         boolean changed = false;
@@ -118,7 +120,7 @@ final class LauncherOrganizer {
             }
             Object controller = call(model, "getModelDbController");
             SQLiteDatabase db = (SQLiteDatabase) call(call(controller, "getDbHelper"), "getWritableDatabase");
-            JSONObject state = snapshot(activity, profile, model, privacy, db);
+            JSONObject state = snapshot(activity, profile, model, privacy, db, screenOrder);
             String action = request.getString("action");
             if ("read".equals(action)) {
                 reply.putString("data", exported(state).toString());
@@ -133,6 +135,9 @@ final class LauncherOrganizer {
                             || (boolean) call(call(activity, "getDragController"), "isDragging")) {
                         throw new IllegalStateException("桌面正忙，请稍后重试");
                     }
+                    if (!java.util.Arrays.equals(screenOrder, screenOrder(activity))) {
+                        throw new IllegalStateException("桌面页面顺序已变化，请重新读取");
+                    }
                     call(activity, "setWorkspaceLoadingMz", boolean.class, true);
                     return null;
                 });
@@ -145,7 +150,8 @@ final class LauncherOrganizer {
                     if (!state.getString("hash").equals(plan.getString("hash"))) {
                         throw new IllegalStateException("桌面或应用列表已变化，请重新读取并生成分类");
                     }
-                    apply(activity, profile, controller, db, state, plan.getJSONArray("groups"));
+                    LauncherOrganizerScope scope = new LauncherOrganizerScope(plan.getJSONObject("scope"));
+                    apply(activity, profile, controller, db, state, plan.getJSONArray("groups"), scope);
                 } else {
                     throw new IllegalArgumentException("未知桌面操作");
                 }
@@ -173,7 +179,12 @@ final class LauncherOrganizer {
         }
     }
 
-    private static JSONObject snapshot(Activity activity, Object profile, Object model, Object privacy, SQLiteDatabase db) throws Exception {
+    private static int[] screenOrder(Activity activity) throws Exception {
+        return (int[]) call(call(call(activity, "getWorkspace"), "getScreenOrder"), "toArray");
+    }
+
+    private static JSONObject snapshot(Activity activity, Object profile, Object model, Object privacy,
+            SQLiteDatabase db, int[] screenOrder) throws Exception {
         Object inv = requiredField(profile, "inv");
         int columns = (int) requiredField(inv, "numColumns");
         int rows = (int) requiredField(inv, "numRows");
@@ -222,10 +233,29 @@ final class LauncherOrganizer {
         }
         if (apps.isEmpty()) throw new IllegalStateException("没有可整理的应用");
         JSONArray appArray = new JSONArray();
-        for (JSONObject app : apps.values()) appArray.put(app);
+        for (JSONObject app : apps.values()) {
+            JSONObject row = app.getJSONObject("row");
+            boolean isNew = !row.has("_id");
+            int folder = !isNew && !onDesktop(row) ? row.getInt("container") : -1;
+            JSONObject parent = folder < 0 ? row : byId.get(folder);
+            app.put("newApp", isNew).put("folderId", folder)
+                    .put("screen", isNew ? -1 : parent.getInt("screen"));
+            appArray.put(app);
+        }
+        LinkedHashSet<Integer> screens = new LinkedHashSet<>();
+        for (int screen : screenOrder) if (screen >= 0 && screen < 100_000_000) screens.add(screen);
+        for (JSONObject row : byId.values()) if (onDesktop(row)) screens.add(row.getInt("screen"));
+        if (screens.isEmpty()) screens.add(0);
+        JSONArray folderInfo = new JSONArray();
+        for (int folder : new TreeSet<>(folders)) {
+            JSONObject row = byId.get(folder);
+            folderInfo.put(new JSONObject().put("id", folder).put("name", row.optString("title", "文件夹"))
+                    .put("screen", row.getInt("screen")));
+        }
         JSONObject state = new JSONObject().put("database", db.getPath()).put("columns", columns)
                 .put("rows", rows).put("items", items).put("apps", appArray)
-                .put("folders", new JSONArray(new TreeSet<>(folders)));
+                .put("folders", folderInfo).put("screens", new JSONArray(screens))
+                .put("scopeVersion", LauncherOrganizerScope.VERSION);
         state.put("layoutHash", layoutHash(state, items));
         JSONArray identities = new JSONArray();
         for (JSONObject app : apps.values()) identities.put(new JSONArray().put(app.getString("id")).put(app.getString("name")));
@@ -245,15 +275,18 @@ final class LauncherOrganizer {
         for (int i = 0; i < apps.length(); i++) {
             JSONObject app = apps.getJSONObject(i);
             result.put(new JSONObject().put("id", app.getString("id")).put("name", app.getString("name"))
-                    .put("package", app.getString("package")));
+                    .put("package", app.getString("package")).put("newApp", app.getBoolean("newApp"))
+                    .put("screen", app.getInt("screen")).put("folderId", app.getInt("folderId")));
         }
         return new JSONObject().put("hash", state.getString("hash")).put("apps", result)
-                .put("columns", state.getInt("columns")).put("rows", state.getInt("rows"));
+                .put("columns", state.getInt("columns")).put("rows", state.getInt("rows"))
+                .put("screens", state.getJSONArray("screens")).put("folders", state.getJSONArray("folders"))
+                .put("scopeVersion", LauncherOrganizerScope.VERSION);
     }
 
     private static void apply(Context context, Object profile, Object controller, SQLiteDatabase db,
-            JSONObject state, JSONArray groups) throws Exception {
-        JSONArray apps = state.getJSONArray("apps");
+            JSONObject state, JSONArray groups, LauncherOrganizerScope scope) throws Exception {
+        JSONArray apps = scope.selectedApps(state);
         List<String> unclassified = LauncherOrganizerProvider.validateGroups(apps, groups);
         // Reuse single-app placement so each unclassified app gets its own desktop cell.
         for (String id : unclassified) {
@@ -268,20 +301,15 @@ final class LauncherOrganizer {
             if (row.has("_id")) moving.add(row.getInt("_id"));
         }
         JSONArray items = state.getJSONArray("items");
-        Set<Integer> removedFolders = new HashSet<>();
-        JSONArray folders = state.getJSONArray("folders");
-        for (int i = 0; i < folders.length(); i++) removedFolders.add(folders.getInt(i));
-        for (int i = 0; i < items.length(); i++) {
-            JSONObject row = items.getJSONObject(i);
-            if (!moving.contains(row.getInt("_id"))) removedFolders.remove(row.optInt("container", -1));
-        }
+        Set<Integer> removedFolders = LauncherOrganizerScope.removableFolders(items, moving);
         List<Integer> screens = new ArrayList<>();
+        JSONArray screenIds = state.getJSONArray("screens");
+        for (int i = 0; i < screenIds.length(); i++) screens.add(screenIds.getInt(i));
         List<int[]> reserved = new ArrayList<>();
         for (int i = 0; i < items.length(); i++) {
             JSONObject row = items.getJSONObject(i);
             int id = row.getInt("_id");
             if (!onDesktop(row)) continue;
-            screens.add(row.getInt("screen"));
             if (!moving.contains(id) && !removedFolders.contains(id)) {
                 reserved.add(new int[]{row.getInt("screen"), row.getInt("cellX"), row.getInt("cellY"), row.getInt("spanX"), row.getInt("spanY")});
             }
@@ -293,10 +321,10 @@ final class LauncherOrganizer {
                     group.optInt("folderType", -1), group.getJSONArray("apps").length(),
                     state.getInt("columns"), state.getInt("rows"))));
         }
-        List<int[]> positions = LauncherOrganizerLayout.place(state.getInt("columns"), state.getInt("rows"), screens, reserved, sizes);
+        List<int[]> positions = LauncherOrganizerLayout.place(state.getInt("columns"), state.getInt("rows"),
+                screens, reserved, sizes, scope.protectedScreens(state));
         JSONArray writes = new JSONArray();
         ClassLoader loader = context.getClassLoader();
-        Class<?> gridType = Class.forName(BASE + "folder.FolderGridOrganizer", false, loader);
         for (int i = 0; i < groups.length(); i++) {
             JSONObject group = groups.getJSONObject(i);
             JSONArray ids = group.getJSONArray("apps");
@@ -304,6 +332,7 @@ final class LauncherOrganizer {
             int container = -100;
             Object grid = null;
             if (ids.length() > 1) {
+                Class<?> gridType = Class.forName(BASE + "folder.FolderGridOrganizer", false, loader);
                 int folderId = (int) call(controller, "generateNewItemId");
                 JSONObject folder = new JSONObject().put("_id", folderId).put("itemType", 2)
                         .put("title", group.getString("name")).put("profileId", context.getSystemService(UserManager.class).getSerialNumberForUser(Process.myUserHandle()))
@@ -417,7 +446,8 @@ final class LauncherOrganizer {
 
     private static String layoutHash(JSONObject state, JSONArray items) throws Exception {
         StringBuilder text = new StringBuilder(state.getString("database"))
-                .append(':').append(state.getInt("columns")).append(':').append(state.getInt("rows"));
+                .append(':').append(state.getInt("columns")).append(':').append(state.getInt("rows"))
+                .append(':').append(state.getJSONArray("screens"));
         for (int i = 0; i < items.length(); i++) {
             JSONObject row = items.getJSONObject(i);
             TreeSet<String> keys = new TreeSet<>();
