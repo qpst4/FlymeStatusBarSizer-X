@@ -3,7 +3,6 @@ package com.example.flymestatusbarsizer.feature.assistant;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.graphics.Rect;
-import android.graphics.drawable.Drawable;
 import android.os.IBinder;
 import android.view.Gravity;
 import android.view.View;
@@ -26,7 +25,8 @@ final class AssistantWindowSession {
     final WindowManager originalManager;
     final WindowManager.LayoutParams originalAttrs = new WindowManager.LayoutParams();
     final Object originalWindowManager, originalToken, originalAppName, originalBackgroundState;
-    final Drawable originalBackground;
+    final AssistantWindowBackground background;
+    final boolean dark;
     final int originalVisibility, originalSystemUi;
     final Field componentManager, added, windowManager, appToken, appName;
     final Method open, close, start, resume, pause, stop, setWindowManager;
@@ -53,7 +53,6 @@ final class AssistantWindowSession {
         originalAppName = appName.get(window);
         originalBackgroundState = AssistantReflection.get(component, "isBackground");
         originalAttrs.copyFrom(window.getAttributes());
-        originalBackground = decor.getBackground();
         originalVisibility = decor.getVisibility();
         originalSystemUi = decor.getSystemUiVisibility();
         restoreLifecycle = lifecycle(component);
@@ -69,6 +68,10 @@ final class AssistantWindowSession {
         windowContext = context.getApplicationContext().createDisplayContext(originalManager.getDefaultDisplay())
                 .createWindowContext(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, null);
         overlayManager = windowContext.getSystemService(WindowManager.class);
+        dark = (windowContext.getResources().getConfiguration().uiMode
+                & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+        background = new AssistantWindowBackground(decor, dark,
+                windowContext.getResources().getDisplayMetrics().density);
     }
 
     void attach() throws ReflectiveOperationException {
@@ -83,10 +86,8 @@ final class AssistantWindowSession {
         attrs.flags &= ~WindowManager.LayoutParams.FLAG_FULLSCREEN;
         setWindowManager.invoke(window, overlayManager, null, TITLE, true);
         componentManager.set(component, window.getWindowManager());
+        background.apply();
         applyIdentityAndAttributes(window, attrs);
-        boolean dark = (windowContext.getResources().getConfiguration().uiMode
-                & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
-        decor.setBackgroundColor(dark ? 0xff181818 : 0xfff3f3f3);
         decor.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE
                 | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
                 | (dark ? 0 : View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR));
@@ -111,6 +112,7 @@ final class AssistantWindowSession {
         attrs.height = bounds.height();
         attrs.gravity = Gravity.TOP | Gravity.LEFT;
         attrs.flags &= ~WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
+        background.updateAttributes(attrs);
     }
 
     void attributesChanged(WindowManager.LayoutParams attrs) throws ReflectiveOperationException {
@@ -132,8 +134,8 @@ final class AssistantWindowSession {
             appToken.set(window, originalToken);
             appName.set(window, originalAppName);
             componentManager.set(component, originalManager);
+            background.restore();
             applyIdentityAndAttributes(window, originalAttrs);
-            decor.setBackground(originalBackground);
             decor.setSystemUiVisibility(originalSystemUi);
             decor.setVisibility(originalVisibility);
             suppressCallbacks = false;
@@ -146,6 +148,7 @@ final class AssistantWindowSession {
             if (reattach && "RESUMED".equals(restoreLifecycle)) resume.invoke(component);
             moved = false;
         } catch (ReflectiveOperationException | RuntimeException error) {
+            background.restore();
             // A dead Launcher token must never leave a focusable transparent overlay on screen.
             decor.setVisibility(View.GONE);
             try { currentManager().removeViewImmediate(decor); } catch (Throwable ignored) { }
