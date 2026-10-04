@@ -106,6 +106,67 @@ public final class LauncherOrganizerScopeTest {
         assertEquals(Set.of(), LauncherOrganizerScope.removableFolders(items, Set.of()));
     }
 
+    @Test public void firstManualEditRetainsOnlyThePreviousEffectiveSelection() throws Exception {
+        LauncherOrganizerScope scope = new LauncherOrganizerScope();
+        scope.editSelection(desktop(), Set.of("folder-a"), true);
+        assertEquals(LauncherOrganizerScope.MANUAL, scope.mode);
+        assertEquals(List.of("loose", "folder-a"), ids(scope.selectedApps(desktop())));
+        scope.editSelection(desktop(), Set.of("loose"), false);
+        assertEquals(List.of("folder-a"), ids(scope.selectedApps(desktop())));
+    }
+
+    @Test public void manualFolderSelectionCanBePartialAndSurvivesSerialization() throws Exception {
+        LauncherOrganizerScope scope = new LauncherOrganizerScope();
+        scope.editSelection(desktop(), Set.of("folder-a", "folder-b"), true);
+        scope.editSelection(desktop(), Set.of("folder-b", "loose"), false);
+        LauncherOrganizerScope restored = new LauncherOrganizerScope(scope.toJson());
+        assertEquals(List.of("folder-a"), ids(restored.selectedApps(desktop())));
+        JSONArray groups = new JSONArray().put(new JSONObject().put("name", "分类")
+                .put("apps", new JSONArray().put("folder-b")));
+        assertThrows(IllegalArgumentException.class, () -> LauncherOrganizerProvider.validateGroups(restored.selectedApps(desktop()), groups));
+    }
+
+    @Test public void manualSelectionStillHonoursLockedScreensIncludingWhitespace() throws Exception {
+        LauncherOrganizerScope scope = new LauncherOrganizerScope();
+        scope.editSelection(desktop(), Set.of("first", "folder-a", "new"), true);
+        scope.keptScreens.add(5);
+        assertEquals(List.of("new"), ids(scope.selectedApps(desktop())));
+        assertEquals(Set.of(9, 5), scope.protectedScreens(desktop()));
+        scope.keepFirstScreen = false;
+        assertEquals(List.of("first", "new"), ids(scope.selectedApps(desktop())));
+    }
+
+    @Test public void manualEmptySelectionStaysEmptyAndRefreshDoesNotSelectNewArrivals() throws Exception {
+        LauncherOrganizerScope scope = new LauncherOrganizerScope();
+        scope.editSelection(desktop(), Set.of("loose"), false);
+        LauncherOrganizerScope restored = new LauncherOrganizerScope(scope.toJson());
+        restored.retainAvailable(desktop());
+        assertEquals(0, restored.selectedApps(desktop()).length());
+        restored.editSelection(desktop(), Set.of("folder-a", "uninstalled"), true);
+        restored.retainAvailable(desktop());
+        assertEquals(Set.of("folder-a"), restored.selectedAppIds);
+    }
+
+    @Test public void duplicateAppPackagesAreSelectedByDesktopEntryId() throws Exception {
+        JSONObject desktop = desktop();
+        desktop.getJSONArray("apps").getJSONObject(3).put("package", "example.folder-a");
+        LauncherOrganizerScope scope = new LauncherOrganizerScope();
+        scope.editSelection(desktop, Set.of("folder-a"), true);
+        assertEquals(List.of("loose", "folder-a"), ids(scope.selectedApps(desktop)));
+    }
+
+    @Test public void oldPreferencesMigrateButOldSnapshotsRequireReload() throws Exception {
+        LauncherOrganizerScope original = new LauncherOrganizerScope();
+        original.mode = 1;
+        original.keptApps.add("folder-a");
+        JSONObject json = original.toJson().put("version", 1);
+        json.remove("selectedAppIds");
+        LauncherOrganizerScope restored = new LauncherOrganizerScope(json);
+        assertEquals(List.of("loose"), ids(restored.selectedApps(desktop())));
+        assertEquals(LauncherOrganizerScope.VERSION, restored.toJson().getInt("version"));
+        assertThrows(IllegalStateException.class, () -> restored.selectedApps(desktop().put("scopeVersion", 1)));
+    }
+
     private static JSONObject row(int id, int container, int type) throws Exception {
         return new JSONObject().put("_id", id).put("container", container).put("itemType", type);
     }

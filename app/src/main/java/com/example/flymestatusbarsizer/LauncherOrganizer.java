@@ -123,7 +123,7 @@ final class LauncherOrganizer {
             JSONObject state = snapshot(activity, profile, model, privacy, db, screenOrder);
             String action = request.getString("action");
             if ("read".equals(action)) {
-                reply.putString("data", exported(state).toString());
+                reply.putString("data", LauncherOrganizerDesktop.exported(state).toString());
             } else {
                 if ((boolean) call(Class.forName(MZ + "utils.WorkspaceLayoutLockUtils", false, loader),
                         "isLauncherLayoutLocked", Context.class, activity)) {
@@ -267,21 +267,6 @@ final class LauncherOrganizer {
         String name = row.optString("title", packageName(row));
         if (row.optInt("cloneId", 0) != 0) name += "（分身 " + row.getInt("cloneId") + "）";
         return new JSONObject().put("id", id).put("name", name).put("package", packageName(row)).put("row", row);
-    }
-
-    private static JSONObject exported(JSONObject state) throws Exception {
-        JSONArray apps = state.getJSONArray("apps");
-        JSONArray result = new JSONArray();
-        for (int i = 0; i < apps.length(); i++) {
-            JSONObject app = apps.getJSONObject(i);
-            result.put(new JSONObject().put("id", app.getString("id")).put("name", app.getString("name"))
-                    .put("package", app.getString("package")).put("newApp", app.getBoolean("newApp"))
-                    .put("screen", app.getInt("screen")).put("folderId", app.getInt("folderId")));
-        }
-        return new JSONObject().put("hash", state.getString("hash")).put("apps", result)
-                .put("columns", state.getInt("columns")).put("rows", state.getInt("rows"))
-                .put("screens", state.getJSONArray("screens")).put("folders", state.getJSONArray("folders"))
-                .put("scopeVersion", LauncherOrganizerScope.VERSION);
     }
 
     private static void apply(Context context, Object profile, Object controller, SQLiteDatabase db,

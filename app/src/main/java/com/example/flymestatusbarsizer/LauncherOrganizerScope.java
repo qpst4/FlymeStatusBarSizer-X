@@ -9,19 +9,22 @@ import java.util.Set;
 
 /** The same scope is enforced before sending apps to AI and again inside the launcher. */
 final class LauncherOrganizerScope {
-    static final int VERSION = 1;
-    static final String[] MODES = {"只整理桌面散落图标", "整理桌面图标和文件夹", "只添加未放到桌面的应用"};
+    static final int VERSION = 2;
+    static final int MANUAL = 3;
+    static final String[] MODES = {"只整理桌面散落图标", "整理桌面图标和文件夹", "只添加未放到桌面的应用", "手动勾选应用"};
     int mode;
     boolean keepFirstScreen = true;
     boolean includeNewApps;
     final Set<Integer> keptScreens = new LinkedHashSet<>();
     final Set<Integer> keptFolders = new LinkedHashSet<>();
     final Set<String> keptApps = new LinkedHashSet<>();
+    final Set<String> selectedAppIds = new LinkedHashSet<>();
 
     LauncherOrganizerScope() { }
 
     LauncherOrganizerScope(JSONObject json) throws Exception {
-        if (json.getInt("version") != VERSION) throw new IllegalArgumentException("整理范围版本不兼容，请重新读取桌面");
+        int version = json.getInt("version");
+        if (version != 1 && version != VERSION) throw new IllegalArgumentException("整理范围版本不兼容，请重新读取桌面");
         mode = json.getInt("mode");
         if (mode < 0 || mode >= MODES.length) throw new IllegalArgumentException("未知整理范围");
         keepFirstScreen = json.getBoolean("keepFirstScreen");
@@ -32,13 +35,19 @@ final class LauncherOrganizerScope {
         for (int i = 0; i < folders.length(); i++) keptFolders.add(folders.getInt(i));
         JSONArray apps = json.getJSONArray("keptApps");
         for (int i = 0; i < apps.length(); i++) keptApps.add(apps.getString(i));
+        if (version >= 2) {
+            JSONArray selected = json.getJSONArray("selectedAppIds");
+            for (int i = 0; i < selected.length(); i++) selectedAppIds.add(selected.getString(i));
+        } else if (mode == MANUAL) {
+            throw new IllegalArgumentException("旧版整理范围不支持手动勾选");
+        }
     }
 
     JSONObject toJson() throws Exception {
         return new JSONObject().put("version", VERSION).put("mode", mode)
                 .put("keepFirstScreen", keepFirstScreen).put("includeNewApps", includeNewApps)
                 .put("keptScreens", new JSONArray(keptScreens)).put("keptFolders", new JSONArray(keptFolders))
-                .put("keptApps", new JSONArray(keptApps));
+                .put("keptApps", new JSONArray(keptApps)).put("selectedAppIds", new JSONArray(selectedAppIds));
     }
 
     static void requireSnapshot(JSONObject desktop) {
@@ -62,6 +71,14 @@ final class LauncherOrganizerScope {
         Set<Integer> protectedScreens = protectedScreens(desktop);
         JSONArray result = new JSONArray();
         JSONArray apps = desktop.getJSONArray("apps");
+        if (mode == MANUAL) {
+            for (int i = 0; i < apps.length(); i++) {
+                JSONObject app = apps.getJSONObject(i);
+                if (selectedAppIds.contains(app.getString("id"))
+                        && (app.getBoolean("newApp") || !protectedScreens.contains(app.getInt("screen")))) result.put(app);
+            }
+            return result;
+        }
         Set<Integer> protectedFolders = new HashSet<>(keptFolders);
         // Removing neighbours can make the launcher compact a folder's ranks on reload.
         // Preserve the entire folder when an app inside it has a fixed position.
@@ -86,6 +103,21 @@ final class LauncherOrganizerScope {
         return result;
     }
 
+    /** Start from the effective selection, so the first tap never selects unrelated apps. */
+    void editSelection(JSONObject desktop, Set<String> ids, boolean selected) throws Exception {
+        if (mode != MANUAL) {
+            JSONArray current = selectedApps(desktop);
+            selectedAppIds.clear();
+            for (int i = 0; i < current.length(); i++) selectedAppIds.add(current.getJSONObject(i).getString("id"));
+            mode = MANUAL;
+            keptApps.clear();
+            keptFolders.clear();
+            includeNewApps = false;
+        }
+        if (selected) selectedAppIds.addAll(ids);
+        else selectedAppIds.removeAll(ids);
+    }
+
     void retainAvailable(JSONObject desktop) throws Exception {
         requireSnapshot(desktop);
         Set<Integer> screens = new HashSet<>();
@@ -101,6 +133,7 @@ final class LauncherOrganizerScope {
         JSONArray appInfo = desktop.getJSONArray("apps");
         for (int i = 0; i < appInfo.length(); i++) apps.add(appInfo.getJSONObject(i).getString("id"));
         keptApps.retainAll(apps);
+        selectedAppIds.retainAll(apps);
     }
 
     /** Only folders emptied by this operation may be deleted; untouched empty folders survive. */

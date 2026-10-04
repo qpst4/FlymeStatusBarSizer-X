@@ -159,7 +159,7 @@ final class LauncherOrganizerPage {
         root.addView(activity.buildSectionCard("操作", "保留底栏、小组件和特殊快捷方式。单应用分类和未分类应用直接放在桌面。", actions), PageViewUtils.matchWrapWithTop(activity, 8));
         LinearLayout scopeRoot = column();
         scopeEditor = new LauncherOrganizerScopeEditor(activity, scopeRoot, this::changeScope);
-        root.addView(activity.buildSectionCard("整理范围", "范围外的内容保持原位，保留整页也保留留白。修改范围后需重新生成分类。", scopeRoot), PageViewUtils.matchWrapWithTop(activity, 8));
+        root.addView(activity.buildSectionCard("整理范围", "按桌面原有布局勾选应用，支持文件夹整选。保留整页也保留留白，修改范围后需重新生成分类。", scopeRoot), PageViewUtils.matchWrapWithTop(activity, 8));
         preview = column();
         root.addView(activity.buildSectionCard("分类预览", "文件夹默认按应用数量自动选尺寸，也可手动选择。点击应用可调整归属。", preview), PageViewUtils.matchWrapWithTop(activity, 8));
         try {
@@ -221,7 +221,7 @@ final class LauncherOrganizerPage {
                     .put("scope", scope.toJson()).toString();
             new AlertDialog.Builder(activity).setTitle("应用桌面整理")
                     .setMessage(LauncherOrganizerScopeEditor.summary(desktop, scope)
-                            + "\n\n仅将本次范围内的 " + selected.length() + " 个应用按预览分类排列；范围外内容保持原位。")
+                            + "\n\n仅将勾选的 " + selected.length() + " 个应用按预览分类排列。未选桌面图标和未清空的文件夹保留在原桌面位置。")
                     .setNegativeButton("取消", null)
                     .setPositiveButton("应用", (dialog, which) -> run(() -> {
                         JSONObject current = new JSONObject(command("read", null));
@@ -698,7 +698,7 @@ final class LauncherOrganizerPage {
 
     private JSONArray requireSelectedApps() throws Exception {
         JSONArray apps = selectedApps();
-        if (apps.length() == 0) throw new IllegalStateException("当前范围没有可整理的应用，请调整整理方式或保留选项");
+        if (apps.length() == 0) throw new IllegalStateException("尚未勾选应用，请在桌面预览中选择需要整理的应用");
         return apps;
     }
 
@@ -711,7 +711,7 @@ final class LauncherOrganizerPage {
             liveText = "";
             liveOutput.setVisibility(View.GONE);
             savePreview();
-            status.setText("整理范围已更新，请重新生成分类。范围外的内容保持原位。");
+            status.setText("整理范围已更新，请重新生成分类。仅整理已勾选的应用。");
             renderPreview();
         } catch (Exception error) { status.setText(error.getMessage()); }
     }
