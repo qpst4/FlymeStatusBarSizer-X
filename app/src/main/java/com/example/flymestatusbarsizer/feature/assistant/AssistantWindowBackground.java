@@ -1,5 +1,6 @@
 package com.example.flymestatusbarsizer.feature.assistant;
 
+import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
@@ -14,12 +15,12 @@ final class AssistantWindowBackground {
     private final ColorDrawable overlay;
     private final int blurRadius;
 
-    AssistantWindowBackground(View decor, boolean dark, float density) {
+    AssistantWindowBackground(View decor, float density) {
         this.decor = decor;
         original = decor.getBackground();
         // View.setBackgroundColor mutates an existing ColorDrawable, including the saved original.
         // A fresh drawable also avoids changing any shared ConstantState used by the native window.
-        overlay = new ColorDrawable(dark ? 0x99181818 : 0x99f3f3f3);
+        overlay = new ColorDrawable(Color.TRANSPARENT);
         blurRadius = Math.max(1, Math.round(40 * density));
     }
 
@@ -28,7 +29,7 @@ final class AssistantWindowBackground {
     }
 
     void updateAttributes(WindowManager.LayoutParams attrs) {
-        // The compositor must retain transparency to show the live app through the tinted blur.
+        // The compositor blurs behind this transparent window; card and text rendering is untouched.
         // Reapply on native open/close attribute changes as well as the initial attachment.
         attrs.format = PixelFormat.TRANSLUCENT;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {

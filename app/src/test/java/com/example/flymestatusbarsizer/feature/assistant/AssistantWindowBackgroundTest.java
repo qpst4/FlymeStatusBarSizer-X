@@ -29,15 +29,13 @@ public class AssistantWindowBackgroundTest {
         Drawable shared = original.getConstantState().newDrawable();
         decor.setBackground(original);
 
-        for (boolean dark : new boolean[]{false, true, false}) {
-            AssistantWindowBackground background = new AssistantWindowBackground(decor, dark, 3);
+        for (int i = 0; i < 3; i++) {
+            AssistantWindowBackground background = new AssistantWindowBackground(decor, 3);
             background.apply();
             assertNotSame(original, decor.getBackground());
             assertEquals(Color.TRANSPARENT, original.getColor());
             assertEquals(Color.TRANSPARENT, ((ColorDrawable) shared).getColor());
-            int tint = ((ColorDrawable) decor.getBackground()).getColor();
-            assertTrue(Color.alpha(tint) > 0 && Color.alpha(tint) < 255);
-            assertEquals(dark ? 0x181818 : 0xf3f3f3, tint & 0xffffff);
+            assertEquals(Color.TRANSPARENT, ((ColorDrawable) decor.getBackground()).getColor());
 
             background.restore();
             assertSame(original, decor.getBackground());
@@ -49,7 +47,7 @@ public class AssistantWindowBackgroundTest {
         View decor = new View(RuntimeEnvironment.getApplication());
         for (Drawable original : new Drawable[]{new GradientDrawable(), null}) {
             decor.setBackground(original);
-            AssistantWindowBackground background = new AssistantWindowBackground(decor, false, 1);
+            AssistantWindowBackground background = new AssistantWindowBackground(decor, 1);
             background.apply();
             background.restore();
             background.restore();
@@ -71,7 +69,7 @@ public class AssistantWindowBackgroundTest {
         AssistantWindowSession.applyIdentityAndAttributes(window, original);
 
         for (int i = 0; i < 2; i++) {
-            AssistantWindowBackground background = new AssistantWindowBackground(decor, false, 3);
+            AssistantWindowBackground background = new AssistantWindowBackground(decor, 3);
             WindowManager.LayoutParams attrs = new WindowManager.LayoutParams();
             attrs.copyFrom(original);
             background.apply();

@@ -70,7 +70,7 @@ final class AssistantWindowSession {
         overlayManager = windowContext.getSystemService(WindowManager.class);
         dark = (windowContext.getResources().getConfiguration().uiMode
                 & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
-        background = new AssistantWindowBackground(decor, dark,
+        background = new AssistantWindowBackground(decor,
                 windowContext.getResources().getDisplayMetrics().density);
     }
 
