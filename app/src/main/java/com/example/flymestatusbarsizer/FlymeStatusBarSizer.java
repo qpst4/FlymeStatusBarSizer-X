@@ -27,6 +27,7 @@ import com.example.flymestatusbarsizer.feature.wifi.WifiIconDrawable;
 import com.example.flymestatusbarsizer.feature.wifi.WifiIconRenderer;
 import com.example.flymestatusbarsizer.feature.wifi.WifiIconStyles;
 import com.example.flymestatusbarsizer.feature.windowmode.WindowModeSideGestureHooks;
+import com.example.flymestatusbarsizer.feature.assistant.AssistantHooks;
 import com.example.flymestatusbarsizer.util.ReflectUtils;
 
 import android.content.ComponentCallbacks;
@@ -241,6 +242,9 @@ public class FlymeStatusBarSizer extends XposedModule {
         if (FLYME_LAUNCHER.equals(packageName)) {
             hookFlymeLauncher(loader);
         }
+        if ("com.meizu.assistant".equals(packageName)) {
+            AssistantHooks.installAssistant(this, loader);
+        }
         if (FLYME_SYSTEMUI_TOOLS.equals(packageName)) {
             WindowModeSideGestureHooks.install(this, loader);
         }
@@ -265,6 +269,7 @@ public class FlymeStatusBarSizer extends XposedModule {
         installSignalHooks(loader);
         NotificationHooks.install(this, loader);
         MBackHooks.install(this, loader);
+        AssistantHooks.installSystemUi(this, loader);
         installBatteryHooks(loader);
         ClockHooks.install(this, loader);
     }
@@ -6527,6 +6532,7 @@ public class FlymeStatusBarSizer extends XposedModule {
     }
 
     private static void refreshTrackedRuntimeViews(boolean forceSignalRequery) {
+        AssistantHooks.refresh();
         StatusBarTintHooks.refresh();
         clearBatteryTintSourceCache();
         clearSignalSubSlotIndexCache();

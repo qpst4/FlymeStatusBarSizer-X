@@ -1,0 +1,76 @@
+package com.example.flymestatusbarsizer.feature.assistant;
+
+import org.junit.Test;
+import static org.junit.Assert.*;
+
+public class AssistantGestureStateTest {
+    private AssistantGestureState gesture() {
+        AssistantGestureState state = new AssistantGestureState();
+        state.begin(5, 500, 1000, 80, 600, 48);
+        return state;
+    }
+
+    @Test public void stationaryFingerTriggersAtDeadlineWithoutAnotherMove() {
+        AssistantGestureState state = gesture();
+        state.move(85, 500, 1);
+        assertFalse(state.ready(1599));
+        assertTrue(state.ready(1600));
+        state.claim();
+        assertFalse(state.ready(1700));
+    }
+
+    @Test public void timeAndDistanceAreBothRequired() {
+        AssistantGestureState state = gesture();
+        state.move(84, 500, 1);
+        assertFalse(state.ready(5000));
+        state.move(85, 500, 1);
+        assertTrue(state.ready(5000));
+    }
+
+    @Test public void fastSwipeRemainsOrdinaryBack() {
+        AssistantGestureState state = gesture();
+        state.move(200, 500, 1);
+        assertFalse(state.ready(1200));
+        state.cancel();
+        assertFalse(state.ready(2000));
+    }
+
+    @Test public void retractingBelowThresholdPreventsDelayedTrigger() {
+        AssistantGestureState state = gesture();
+        state.move(120, 500, 1);
+        state.move(35, 500, 1);
+        assertFalse(state.ready(1600));
+        state.move(100, 500, 1);
+        assertTrue(state.ready(1700));
+    }
+
+    @Test public void verticalDriftOrSecondFingerCancelsThisStream() {
+        AssistantGestureState state = gesture();
+        state.move(150, 550, 1);
+        state.move(150, 500, 1);
+        assertFalse(state.ready(1600));
+        state = gesture();
+        state.move(150, 500, 2);
+        state.move(150, 500, 1);
+        assertFalse(state.ready(1600));
+    }
+
+    @Test public void wrongDirectionAndInvalidCoordinatesCannotTrigger() {
+        AssistantGestureState state = gesture();
+        state.move(-100, 500, 1);
+        assertFalse(state.ready(2000));
+        state = gesture();
+        state.move(Float.NaN, 500, 1);
+        assertFalse(state.ready(2000));
+    }
+
+    @Test public void aNewDownStartsAnIndependentDeadline() {
+        AssistantGestureState state = gesture();
+        state.move(100, 500, 1);
+        state.claim();
+        state.begin(5, 500, 3000, 80, 600, 48);
+        state.move(100, 500, 1);
+        assertFalse(state.ready(3599));
+        assertTrue(state.ready(3600));
+    }
+}

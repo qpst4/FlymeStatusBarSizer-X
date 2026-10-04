@@ -8,6 +8,7 @@
         </intent>
         <package android:name="com.meizu.pps" />
         <package android:name="com.meizu.flyme.launcher" />
+        <package android:name="com.meizu.assistant" />
     </queries>
 
     <application

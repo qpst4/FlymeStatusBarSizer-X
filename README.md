@@ -29,6 +29,7 @@ FlymeStatusBarSizer 是一个面向 Flyme 的 LSPosed 模块，应用内名称�
 ### 系统交互
 
 - **自定义 mBack**：长触可启动 URL / Intent、打开底部时间弹窗或后台应用星图；支持导航栏透明、小白条显隐及尺寸、高度调整。
+- **全局负一屏**：从左侧返回区域向内滑动并按住，距离和时间均达到阈值后，在当前应用上打开 Aicy 纵览；返回关闭后恢复原应用。距离和时间可调，默认 80dp / 600ms，功能默认关闭。
 - **调整小窗手势**：支持侧边手势启动自定义动作、扩展小窗选择面板环数，以及长停全屏打开。
 - **编排输入法控制栏**：将返回、粘贴、撤销、删除、全选、复制、切换输入法拖入固定 7 个槽位，自由决定显示位置，并调整图标大小、透明度和背景。
 - **启用 iOS 式堆叠后台**：在竖屏最近任务中使用堆叠卡片，可配置模糊、阴影和清除全部按钮；横屏保留系统布局。
@@ -60,7 +61,8 @@ FlymeStatusBarSizer 是一个面向 Flyme 的 LSPosed 模块，应用内名称�
 
 | 系统组件 / 应用 | 包名 | 相关功能 |
 | --- | --- | --- |
-| 系统界面 | `com.android.systemui` | 状态栏、图标、电池、时间、通知、mBack |
+| 系统界面 | `com.android.systemui` | 状态栏、图标、电池、时间、通知、mBack、全局负一屏手势 |
+| Aicy 纵览 | `com.meizu.assistant` | 全局负一屏的独立窗口与关闭恢复 |
 | 系统桌面 | `com.meizu.flyme.launcher` | AI 桌面整理、最近任务、桌面与后台场景的状态栏颜色联动 |
 | SystemUITools | `com.flyme.systemuitools` | 小窗侧边手势与选择面板 |
 | OneMind / PPS | `com.meizu.pps` | OneMind 性能调节控制 |
@@ -109,6 +111,12 @@ FlymeStatusBarSizer 是一个面向 Flyme 的 LSPosed 模块，应用内名称�
 
 Telephony 调试用于模拟插卡数量、网络类型和信号等级，以检查图标显示，不会改变实际网络连接。调试结束后可点击“恢复真实系统”。
 
+**全局负一屏如何启用？**
+
+在 LSPosed 中勾选系统界面与 Aicy 纵览（`com.meizu.assistant`），重启手机，并先从桌面打开一次负一屏。进入“系统交互 → 全局负一屏”开启功能。从左侧返回区域向右滑够距离并保持按住，达到时间阈值后打开面板；未达到阈值时正常返回，右侧手势保持系统行为。
+
+面板使用助手已有的卡片实例，并提供独立背景。返回可退出编辑状态或关闭面板；切换应用、回桌面、最近任务、锁屏和配置变化会收起全局面板。遵循系统允许的返回手势区域，锁屏、游戏禁用返回等情况下不强行接管。距离与时间设置自动同步。实现与验证边界见 [全局负一屏说明](docs/global-assistant.md)。
+
 **如何备份或恢复设置？**
 
 在“高级与调试 → 配置管理”中导出或导入配置，也可恢复默认。恢复后若界面没有更新，重启对应组件。
@@ -127,6 +135,7 @@ Java 源码位于 `app/src/main/java/com/example/flymestatusbarsizer/`，按以�
 | `feature/statusbar/`、`feature/network/` | 状态栏场景着色、图标尺寸、组合预览与网速显隐 |
 | `feature/clock/`、`feature/ime/` | 时钟与输入法功能，包括对应编辑器 |
 | `feature/launcher/` | 桌面外观、最近任务与堆叠参数，`organizer/` 存放桌面整理功能 |
+| `feature/assistant/` | 左侧长滑识别、受限 Binder 控制、负一屏窗口迁移与恢复 |
 | 其他 `feature/` 子包 | mBack、小窗、CarLink、OneMind 和手机管家等功能 |
 
 单元测试位于 `app/src/test/java/`，包结构与被测功能对应；状态栏场景检查也由 Gradle 的 Robolectric 测试运行。新增功能类放入对应功能包，跨功能共享配置和工具分别放入 `config/`、`util/`。Android 资源仍位于 `app/src/main/res/`。

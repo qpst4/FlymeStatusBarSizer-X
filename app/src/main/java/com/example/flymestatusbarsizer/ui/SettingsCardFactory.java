@@ -365,6 +365,24 @@ public final class SettingsCardFactory {
                 buildWindowModeSideGesturePage());
     }
 
+    public View createAssistantGestureSettingsCard() {
+        LinearLayout page = new LinearLayout(activity);
+        page.setOrientation(LinearLayout.VERTICAL);
+        activity.addSwitchRow(page, "左侧长滑打开负一屏",
+                "从屏幕左侧向内滑动并按住，距离和时间都达到阈值时打开负一屏。关闭后回到原应用。",
+                SettingsStore.KEY_ASSISTANT_GESTURE_ENABLED, SettingsStore.DEFAULT_ASSISTANT_GESTURE_ENABLED);
+        activity.addDivider(page);
+        activity.addSliderRow(page, "滑动距离", "从起手位置向右移动的距离。",
+                SettingsStore.KEY_ASSISTANT_GESTURE_DISTANCE_DP, SettingsStore.DEFAULT_ASSISTANT_GESTURE_DISTANCE_DP,
+                40, 240, "dp");
+        activity.addSliderRow(page, "按住时间", "从手指按下开始计时；滑够距离后保持按住即可触发。",
+                SettingsStore.KEY_ASSISTANT_GESTURE_HOLD_MS, SettingsStore.DEFAULT_ASSISTANT_GESTURE_HOLD_MS,
+                250, 2000, "ms");
+        activity.addProfileSectionHeader(page, "首次启用",
+                "在 LSPosed 中勾选系统界面和 Aicy 纵览（com.meizu.assistant），重启手机，并先从桌面打开一次负一屏。遵循系统返回手势区域，锁屏时不触发。未达到阈值时正常返回。");
+        return activity.buildSectionCard("全局负一屏", "左侧长滑返回，在当前应用上打开 Aicy 纵览。", page);
+    }
+
     public View createCarLinkSettingsCard() {
         LinearLayout content = new LinearLayout(activity);
         content.setOrientation(LinearLayout.VERTICAL);

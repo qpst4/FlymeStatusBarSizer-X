@@ -110,6 +110,12 @@ public final class SettingsStore {
     public static final String KEY_CLOCK_DETAIL_ASSISTANT_ACTION_CACHE_JSON =
             "clock_detail_assistant_action_cache_json";
     public static final String KEY_MBACK_LONG_TOUCH_URL_ENABLED = "mback_long_touch_url_enabled";
+    public static final String KEY_ASSISTANT_GESTURE_ENABLED = "assistant_gesture_enabled";
+    public static final String KEY_ASSISTANT_GESTURE_DISTANCE_DP = "assistant_gesture_distance_dp";
+    public static final String KEY_ASSISTANT_GESTURE_HOLD_MS = "assistant_gesture_hold_ms";
+    public static final boolean DEFAULT_ASSISTANT_GESTURE_ENABLED = false;
+    public static final int DEFAULT_ASSISTANT_GESTURE_DISTANCE_DP = 80;
+    public static final int DEFAULT_ASSISTANT_GESTURE_HOLD_MS = 600;
     public static final String KEY_MBACK_LONG_TOUCH_ACTION = "mback_long_touch_action";
     public static final String KEY_MBACK_LONG_TOUCH_INTENT_URI = "mback_long_touch_intent_uri";
     public static final String KEY_WINDOWMODE_SIDE_GESTURE_ENABLED = "windowmode_side_gesture_enabled";
@@ -526,6 +532,8 @@ public final class SettingsStore {
     public static final int DEFAULT_TELEPHONY_DEBUG_SLOT2_NETWORK_PROFILE = TELEPHONY_DEBUG_NETWORK_PROFILE_4G;
     public static final int DEFAULT_TELEPHONY_DEBUG_SLOT2_SIGNAL_LEVEL = 2;
     public static final String[] INT_KEYS = {
+            KEY_ASSISTANT_GESTURE_DISTANCE_DP,
+            KEY_ASSISTANT_GESTURE_HOLD_MS,
             CircleBatteryAnimationConfig.NORMAL,
             CircleBatteryAnimationConfig.CHARGING,
             CircleBatteryAnimationConfig.PALETTE,
@@ -653,6 +661,7 @@ public final class SettingsStore {
     };
 
     public static final String[] BOOLEAN_KEYS = {
+            KEY_ASSISTANT_GESTURE_ENABLED,
             CircleBatteryAnimationConfig.ENABLED,
             CircleBatteryAnimationConfig.CHARGING_ONLY,
             CircleBatteryAnimationConfig.EVENTS,
@@ -909,6 +918,8 @@ public final class SettingsStore {
     public static int defaultInt(String key) {
         if (CircleBatteryAnimationConfig.isKey(key)) return CircleBatteryAnimationConfig.defaultInt(key);
         switch (key) {
+            case KEY_ASSISTANT_GESTURE_DISTANCE_DP: return DEFAULT_ASSISTANT_GESTURE_DISTANCE_DP;
+            case KEY_ASSISTANT_GESTURE_HOLD_MS: return DEFAULT_ASSISTANT_GESTURE_HOLD_MS;
             case KEY_POSITION_OFFSET_STORAGE_VERSION:
                 return POSITION_OFFSET_STORAGE_VERSION_CAMERA_HUNDREDTH_DP;
             case KEY_BATTERY_ICON_STYLE:
@@ -1135,6 +1146,7 @@ public final class SettingsStore {
     public static boolean defaultBoolean(String key) {
         if (CircleBatteryAnimationConfig.isKey(key)) return CircleBatteryAnimationConfig.defaultBoolean(key);
         switch (key) {
+            case KEY_ASSISTANT_GESTURE_ENABLED: return DEFAULT_ASSISTANT_GESTURE_ENABLED;
             case KEY_ENABLED:
                 return DEFAULT_ENABLED;
             case KEY_STATUS_BAR_TINT_ENABLED:

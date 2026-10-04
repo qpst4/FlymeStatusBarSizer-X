@@ -3,6 +3,7 @@ com.android.systemui
 com.meizu.pps
 com.meizu.safe
 com.meizu.flyme.launcher
+com.meizu.assistant
 com.flyme.systemuitools
 com.upuphone.carlink
 com.android.inputmethod.latin
