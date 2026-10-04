@@ -1,15 +1,33 @@
 package com.example.flymestatusbarsizer;
 
-import com.example.flymestatusbarsizer.feature.clock.ClockHooks;
+import com.example.flymestatusbarsizer.config.ModuleConfig;
+import com.example.flymestatusbarsizer.config.SettingsStore;
+import com.example.flymestatusbarsizer.feature.battery.BatteryTextFontHelper;
+import com.example.flymestatusbarsizer.feature.battery.CircleBatteryAppearance;
+import com.example.flymestatusbarsizer.feature.battery.CircleBatteryDynamics;
+import com.example.flymestatusbarsizer.feature.battery.FlymeCapsuleBatteryPainter;
+import com.example.flymestatusbarsizer.feature.battery.IosBatteryPainter;
+import com.example.flymestatusbarsizer.feature.battery.OneUiBatteryPainter;
 import com.example.flymestatusbarsizer.feature.carlink.CarLinkHooks;
+import com.example.flymestatusbarsizer.feature.clock.ClockHooks;
 import com.example.flymestatusbarsizer.feature.ime.ImeHooks;
 import com.example.flymestatusbarsizer.feature.launcher.LauncherAppearanceHooks;
 import com.example.flymestatusbarsizer.feature.launcher.LauncherRecentsHooks;
+import com.example.flymestatusbarsizer.feature.launcher.organizer.LauncherOrganizer;
 import com.example.flymestatusbarsizer.feature.mback.MBackHooks;
+import com.example.flymestatusbarsizer.feature.mzsafe.MzSafeOptimizationHooks;
+import com.example.flymestatusbarsizer.feature.network.ConnectionRateHooks;
 import com.example.flymestatusbarsizer.feature.notification.NotificationHooks;
 import com.example.flymestatusbarsizer.feature.onemind.OneMindPerfHooks;
-import com.example.flymestatusbarsizer.feature.mzsafe.MzSafeOptimizationHooks;
+import com.example.flymestatusbarsizer.feature.signal.SignalIconDrawable;
+import com.example.flymestatusbarsizer.feature.signal.SignalPreviewPainter;
+import com.example.flymestatusbarsizer.feature.statusbar.IconMetrics;
+import com.example.flymestatusbarsizer.feature.statusbar.StatusBarTintHooks;
+import com.example.flymestatusbarsizer.feature.wifi.WifiIconDrawable;
+import com.example.flymestatusbarsizer.feature.wifi.WifiIconRenderer;
+import com.example.flymestatusbarsizer.feature.wifi.WifiIconStyles;
 import com.example.flymestatusbarsizer.feature.windowmode.WindowModeSideGestureHooks;
+import com.example.flymestatusbarsizer.util.ReflectUtils;
 
 import android.content.ComponentCallbacks;
 import android.content.Context;
@@ -2255,7 +2273,7 @@ public class FlymeStatusBarSizer extends XposedModule {
         return null;
     }
 
-    static int resolveSignalMobileTypeBadgeFontWeight() {
+    public static int resolveSignalMobileTypeBadgeFontWeight() {
         Context context = ModuleConfig.getSystemUiContext();
         ModuleConfig config = ModuleConfig.load(context);
         if (config == null || !config.enabled) {

@@ -1,5 +1,26 @@
 package com.example.flymestatusbarsizer;
 
+import com.example.flymestatusbarsizer.config.SettingsStore;
+import com.example.flymestatusbarsizer.feature.battery.CircleBatteryAnimationConfig;
+import com.example.flymestatusbarsizer.feature.clock.ClockDetailActionGridEditor;
+import com.example.flymestatusbarsizer.feature.clock.ClockExpressionEditor;
+import com.example.flymestatusbarsizer.feature.ime.ImeToolbarEditor;
+import com.example.flymestatusbarsizer.feature.launcher.organizer.LauncherOrganizerPage;
+import com.example.flymestatusbarsizer.feature.onemind.OneMindHookPointDetector;
+import com.example.flymestatusbarsizer.ui.AboutPageController;
+import com.example.flymestatusbarsizer.ui.AdvancedDebugPageController;
+import com.example.flymestatusbarsizer.ui.HomePageController;
+import com.example.flymestatusbarsizer.ui.IconsBatteryPageController;
+import com.example.flymestatusbarsizer.ui.LauncherStackParamsPageController;
+import com.example.flymestatusbarsizer.ui.PageViewUtils;
+import com.example.flymestatusbarsizer.ui.PositionTuningPageController;
+import com.example.flymestatusbarsizer.ui.SettingsCardFactory;
+import com.example.flymestatusbarsizer.ui.SettingsUiFactory;
+import com.example.flymestatusbarsizer.ui.SystemAppearancePageController;
+import com.example.flymestatusbarsizer.ui.SystemInteractionPageController;
+import com.example.flymestatusbarsizer.ui.TelephonyDebugPageController;
+import com.example.flymestatusbarsizer.ui.TimeNetworkPageController;
+
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ClipData;
@@ -69,8 +90,8 @@ public class MainActivity extends Activity {
     private static final int REQUEST_IMPORT_CONFIG = 1002;
 
     private static final int MENU_ABOUT = 1;
-    static final String IME_CONTROL_BAR_DRAG_LABEL = "ime_control_bar_button";
-    static final int IME_CONTROL_BAR_POOL_ROW_ITEM_COUNT = 3;
+    public static final String IME_CONTROL_BAR_DRAG_LABEL = "ime_control_bar_button";
+    public static final int IME_CONTROL_BAR_POOL_ROW_ITEM_COUNT = 3;
     private static final String PACKAGE_SYSTEM_UI = "com.android.systemui";
     private static final String PACKAGE_FLYME_LAUNCHER = "com.meizu.flyme.launcher";
     private static final String PACKAGE_FLYME_SYSTEMUI_TOOLS = "com.flyme.systemuitools";
@@ -82,7 +103,7 @@ public class MainActivity extends Activity {
     private static final String GITHUB_URL = "https://github.com/shenymo/FlymeStatusBarSizer";
     private static final String QQ_GROUP_URL = "https://qun.qq.com/universal-share/share?ac=1&authKey=WuaHYIEHdI6Y%2Fvn7SvcFMtyuUX%2Bwp%2FMedY0eMgPLq9Bbrz%2FPMRsiIgDttNOMbPWW&busi_data=eyJncm91cENvZGUiOiIxMTAyMTM4MzgxIiwidG9rZW4iOiJIb1hmV2xvaVUxWFk2YjAyOXl5MmIwelljU3A5bFRYejQrb3JtUlJwOXRMK1BLU3pnWWRaSG9VdHZ4M3Fld2xqIiwidWluIjoiMjI4OTU3MTk5MCJ9&data=O3ClX619ry0x93elARpxRoHiwSavPU_N00zhT1jj5d_rR0feICi-g7gudqIpU6sbrKtr1_CCPBpNQ-APojGliw&svctype=4&tempid=h5_group_info";
     private static final String QQ_GROUP_NUMBER = "1102138381";
-    static final Pattern CLOCK_EXPRESSION_TOKEN_PATTERN = Pattern.compile("\\{([A-Za-z0-9_]+)\\}");
+    public static final Pattern CLOCK_EXPRESSION_TOKEN_PATTERN = Pattern.compile("\\{([A-Za-z0-9_]+)\\}");
     static final String[][] CLOCK_EXPRESSION_TOKEN_ROWS = {
             {"HH", "H", "hh", "h"},
             {"mm", "ss", "ampm", "period"},
@@ -144,7 +165,7 @@ public class MainActivity extends Activity {
     private final SettingsCardFactory settingsCardFactory = new SettingsCardFactory(this);
     private final SettingsUiFactory settingsUiFactory = new SettingsUiFactory(this);
 
-    enum Page {
+    public enum Page {
         HOME(null, null, null, false),
         ICONS_BATTERY("图标与电池", "状态栏图标缩放、电池样式、通知图标以及信号与 Wi-Fi 接管设置。", null, true),
         TIME_NETWORK("时间与网络", "实时网速显隐阈值、时间表达式、时钟详情弹窗，以及时间字重字号设置。", null, true),
@@ -300,13 +321,13 @@ public class MainActivity extends Activity {
         addSearchItem(pageView, page.title, page.subtitle);
     }
 
-    void addSearchItem(View view, String title, String description) {
+    public void addSearchItem(View view, String title, String description) {
         if (!TextUtils.isEmpty(title)) {
             view.setTag(R.id.feature_search_metadata, new String[]{title, description});
         }
     }
 
-    LinearLayout addFeatureSearch(LinearLayout root) {
+    public LinearLayout addFeatureSearch(LinearLayout root) {
         LinearLayout bar = new LinearLayout(this);
         bar.setGravity(Gravity.CENTER_VERTICAL);
         bar.setBackground(outlinedRect(colorSurface, colorStroke, 1, 16));
@@ -531,7 +552,7 @@ public class MainActivity extends Activity {
         }
     }
 
-    void openPage(Page page) {
+    public void openPage(Page page) {
         if (page == null || page == currentPage) {
             return;
         }
@@ -672,36 +693,36 @@ public class MainActivity extends Activity {
         }
     }
 
-    void showTelephonyDebugPage() {
+    public void showTelephonyDebugPage() {
         openPage(Page.TELEPHONY_DEBUG);
     }
 
-    void showPositionTuningPage() {
+    public void showPositionTuningPage() {
         openPage(Page.POSITION_TUNING);
     }
 
-    void showCameraCirclePositionPage() {
+    public void showCameraCirclePositionPage() {
         openPage(Page.CAMERA_CIRCLE_POSITION);
     }
 
-    void showLauncherStackParamsPage() {
+    public void showLauncherStackParamsPage() {
         openPage(Page.LAUNCHER_STACK_PARAMS);
     }
 
-    void showLauncherOrganizerPage() {
+    public void showLauncherOrganizerPage() {
         openPage(Page.LAUNCHER_ORGANIZER);
     }
 
-    void showClockDetailActionGridEditor() {
+    public void showClockDetailActionGridEditor() {
         clockDetailActionGridEditor.show();
     }
 
-    Switch addSwitchRow(LinearLayout root, String titleText, String subtitleText,
+    public Switch addSwitchRow(LinearLayout root, String titleText, String subtitleText,
             String key, boolean defaultValue) {
         return addSwitchRow(root, titleText, subtitleText, key, defaultValue, null);
     }
 
-    Switch addSwitchRow(LinearLayout root, String titleText, String subtitleText,
+    public Switch addSwitchRow(LinearLayout root, String titleText, String subtitleText,
             String key, boolean defaultValue, CompoundButton.OnCheckedChangeListener extraListener) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -761,12 +782,12 @@ public class MainActivity extends Activity {
         return card;
     }
 
-    void addSliderRow(LinearLayout root, String titleText, String subtitleText, String key,
+    public void addSliderRow(LinearLayout root, String titleText, String subtitleText, String key,
             int defaultValue, int min, int max, String suffix) {
         addSliderRow(root, titleText, subtitleText, key, defaultValue, min, max, suffix, false);
     }
 
-    void addTenthDpSliderRow(LinearLayout root, String titleText, String subtitleText, String key,
+    public void addTenthDpSliderRow(LinearLayout root, String titleText, String subtitleText, String key,
             int defaultValueTenthDp, int minTenthDp, int maxTenthDp) {
         addSliderRow(root, titleText, subtitleText, key, defaultValueTenthDp,
                 minTenthDp, maxTenthDp, "dp", true);
@@ -860,7 +881,7 @@ public class MainActivity extends Activity {
         root.addView(row, matchWrap());
     }
 
-    void addPositionOffsetSliderRow(LinearLayout root, String titleText, String subtitleText,
+    public void addPositionOffsetSliderRow(LinearLayout root, String titleText, String subtitleText,
             String key, int defaultValueTenthDp) {
         addPositionOffsetSliderRow(
                 root,
@@ -1061,12 +1082,12 @@ public class MainActivity extends Activity {
         root.addView(row, matchWrap());
     }
 
-    void addApplySliderRow(LinearLayout root, String titleText, String subtitleText, String key,
+    public void addApplySliderRow(LinearLayout root, String titleText, String subtitleText, String key,
             int defaultValue, int min, int max, String suffix) {
         addApplySliderRowInternal(root, titleText, subtitleText, key, defaultValue, min, max, suffix, false);
     }
 
-    void addApplyInsetSliderRow(LinearLayout root, String titleText, String subtitleText,
+    public void addApplyInsetSliderRow(LinearLayout root, String titleText, String subtitleText,
             String key, int defaultValue, int min, int max) {
         addApplySliderRowInternal(root, titleText, subtitleText, key, defaultValue, min, max, "", true);
     }
@@ -1159,7 +1180,7 @@ public class MainActivity extends Activity {
         addSliderRow(root, titleText, subtitleText, key, initialValue, min, max, suffix);
     }
 
-    void addDefaultableSliderRow(LinearLayout root, String titleText, String subtitleText,
+    public void addDefaultableSliderRow(LinearLayout root, String titleText, String subtitleText,
             String key, int defaultValue, int min, int max, String suffix) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.VERTICAL);
@@ -1247,18 +1268,18 @@ public class MainActivity extends Activity {
         root.addView(row, matchWrap());
     }
 
-    void addTextSettingRow(LinearLayout root, String titleText, String subtitleText,
+    public void addTextSettingRow(LinearLayout root, String titleText, String subtitleText,
             String key, String defaultValue, String emptyLabel) {
         addTextSettingRow(root, titleText, subtitleText, key, defaultValue, emptyLabel, null, false);
     }
 
-    TextView addTextSettingRow(LinearLayout root, String titleText, String subtitleText,
+    public TextView addTextSettingRow(LinearLayout root, String titleText, String subtitleText,
             String key, String defaultValue, String emptyLabel, String inputHint, boolean plainTextInput) {
         return addTextSettingRow(root, titleText, subtitleText, key, defaultValue, emptyLabel,
                 inputHint, plainTextInput, "清空", "");
     }
 
-    TextView addTextSettingRow(LinearLayout root, String titleText, String subtitleText,
+    public TextView addTextSettingRow(LinearLayout root, String titleText, String subtitleText,
             String key, String defaultValue, String emptyLabel, String inputHint, boolean plainTextInput,
             String neutralButtonText, String neutralValue) {
         LinearLayout row = new LinearLayout(this);
@@ -1307,7 +1328,7 @@ public class MainActivity extends Activity {
         return valueView;
     }
 
-    void addChoiceRow(LinearLayout root, String titleText, String subtitleText,
+    public void addChoiceRow(LinearLayout root, String titleText, String subtitleText,
             String key, int defaultValue, int[] values, String[] labels) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -1343,12 +1364,12 @@ public class MainActivity extends Activity {
         root.addView(row, matchWrap());
     }
 
-    void addActionButtonRow(LinearLayout root, String titleText, String subtitleText,
+    public void addActionButtonRow(LinearLayout root, String titleText, String subtitleText,
             String buttonText, Runnable action) {
         settingsUiFactory.addActionButtonRow(root, titleText, subtitleText, buttonText, action);
     }
 
-    void applyAllPositionOffsets() {
+    public void applyAllPositionOffsets() {
         SharedPreferences.Editor editor = prefs.edit();
         for (String key : POSITION_TUNING_KEYS) {
             int value = getPendingPositionOffsetValue(
@@ -1365,7 +1386,7 @@ public class MainActivity extends Activity {
         showToast("个性化位置微调已应用");
     }
 
-    void resetAllPositionOffsets() {
+    public void resetAllPositionOffsets() {
         for (String key : POSITION_TUNING_KEYS) {
             updatePendingPositionOffsetValue(
                     key,
@@ -1379,19 +1400,19 @@ public class MainActivity extends Activity {
         showToast("个性化位置微调已归零为 0.0dp，点应用后写入状态栏");
     }
 
-    void addDivider(LinearLayout root) {
+    public void addDivider(LinearLayout root) {
         settingsUiFactory.addDivider(root);
     }
 
-    void addProfileSectionHeader(LinearLayout root, String titleText, String subtitleText) {
+    public void addProfileSectionHeader(LinearLayout root, String titleText, String subtitleText) {
         settingsUiFactory.addProfileSectionHeader(root, titleText, subtitleText);
     }
 
-    void addHelpButton(LinearLayout row, String titleText, String message) {
+    public void addHelpButton(LinearLayout row, String titleText, String message) {
         settingsUiFactory.addHelpButton(row, titleText, message);
     }
 
-    void showHelpDialog(String titleText, String message) {
+    public void showHelpDialog(String titleText, String message) {
         if (TextUtils.isEmpty(message)) {
             return;
         }
@@ -1439,7 +1460,7 @@ public class MainActivity extends Activity {
         return labels.length > 0 ? labels[0] : "";
     }
 
-    String readStringSetting(String key, String defaultValue) {
+    public String readStringSetting(String key, String defaultValue) {
         return SettingsStore.readString(prefs, key, defaultValue);
     }
 
@@ -1456,7 +1477,7 @@ public class MainActivity extends Activity {
         invalidatePreview();
     }
 
-    void putIntSetting(String key, int value) {
+    public void putIntSetting(String key, int value) {
         SharedPreferences.Editor editor = prefs.edit().putInt(key, value);
         if (SettingsStore.isPositionOffsetKey(key)) {
             SettingsStore.markPositionOffsetStorageVersion(editor);
@@ -1466,13 +1487,13 @@ public class MainActivity extends Activity {
         invalidatePreview();
     }
 
-    void putStringSetting(String key, String value) {
+    public void putStringSetting(String key, String value) {
         prefs.edit().putString(key, value == null ? "" : value).apply();
         SettingsStore.notifyChanged(this);
         invalidatePreview();
     }
 
-    void resetLauncherStackParams() {
+    public void resetLauncherStackParams() {
         SharedPreferences.Editor editor = prefs.edit();
         for (String key : SettingsStore.LAUNCHER_STACK_PARAMETER_KEYS) {
             editor.putInt(key, SettingsStore.defaultInt(key));
@@ -1484,7 +1505,7 @@ public class MainActivity extends Activity {
         recreate();
     }
 
-    void exportLauncherStackParamsToClipboard() {
+    public void exportLauncherStackParamsToClipboard() {
         try {
             JSONObject root = new JSONObject();
             JSONObject settings = new JSONObject();
@@ -1518,7 +1539,7 @@ public class MainActivity extends Activity {
         }
     }
 
-    void showImportLauncherStackParamsDialog() {
+    public void showImportLauncherStackParamsDialog() {
         showTextInputDialog(
                 "导入堆叠后台参数",
                 readClipboardText(),
@@ -1584,27 +1605,27 @@ public class MainActivity extends Activity {
         }
     }
 
-    void disableTelephonyDebug() {
+    public void disableTelephonyDebug() {
         prefs.edit().putBoolean(SettingsStore.KEY_TELEPHONY_DEBUG_ENABLED, false).apply();
         SettingsStore.notifyChanged(this);
         invalidatePreview();
         showToast("已恢复真实 Telephony");
     }
 
-    void testLaunchMBackIntent() {
+    public void testLaunchMBackIntent() {
         testLaunchIntentSetting(
                 SettingsStore.KEY_MBACK_LONG_TOUCH_INTENT_URI,
                 SettingsStore.DEFAULT_MBACK_LONG_TOUCH_INTENT_URI);
     }
 
-    void testLaunchWindowModeSideGestureIntent() {
+    public void testLaunchWindowModeSideGestureIntent() {
         testLaunchIntentSetting(
                 SettingsStore.KEY_WINDOWMODE_SIDE_GESTURE_INTENT_URI,
                 SettingsStore.DEFAULT_WINDOWMODE_SIDE_GESTURE_INTENT_URI,
                 false);
     }
 
-    void openCarLinkAppManagement() {
+    public void openCarLinkAppManagement() {
         try {
             Intent intent = new Intent();
             intent.setClassName(PACKAGE_CARLINK, CARLINK_APP_MANAGER);
@@ -1616,7 +1637,7 @@ public class MainActivity extends Activity {
         }
     }
 
-    void testLaunchLauncherAicyTarget() {
+    public void testLaunchLauncherAicyTarget() {
         testLaunchIntentSetting(
                 SettingsStore.KEY_LAUNCHER_AICY_ENTRY_TARGET,
                 SettingsStore.DEFAULT_LAUNCHER_AICY_ENTRY_TARGET,
@@ -1664,10 +1685,10 @@ public class MainActivity extends Activity {
         }
     }
 
-    void invalidatePreview() {
+    public void invalidatePreview() {
     }
 
-    void resetAllSettings() {
+    public void resetAllSettings() {
         prefs.edit().clear().apply();
         SettingsStore.notifyChanged(this);
         invalidatePreview();
@@ -1708,7 +1729,7 @@ public class MainActivity extends Activity {
         return value < 0 ? "系统默认" : value + "dp";
     }
 
-    void startExportConfig() {
+    public void startExportConfig() {
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("application/json");
@@ -1716,7 +1737,7 @@ public class MainActivity extends Activity {
         startActivityForResult(intent, REQUEST_EXPORT_CONFIG);
     }
 
-    void startImportConfig() {
+    public void startImportConfig() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("application/json");
@@ -2043,7 +2064,7 @@ public class MainActivity extends Activity {
         return insetValue ? formatInsetValue(value) : formatValue(value, suffix);
     }
 
-    void setTapClickListener(View view, View.OnClickListener listener) {
+    public void setTapClickListener(View view, View.OnClickListener listener) {
         if (view == null || listener == null) {
             return;
         }
@@ -2060,7 +2081,7 @@ public class MainActivity extends Activity {
         });
     }
 
-    void styleSwitch(Switch toggle) {
+    public void styleSwitch(Switch toggle) {
         if (toggle == null) {
             return;
         }
@@ -2075,7 +2096,7 @@ public class MainActivity extends Activity {
         toggle.setThumbDrawable(buildSwitchThumbDrawable());
     }
 
-    void styleSeekBar(SeekBar seekBar) {
+    public void styleSeekBar(SeekBar seekBar) {
         if (seekBar == null) {
             return;
         }
@@ -2087,7 +2108,7 @@ public class MainActivity extends Activity {
         seekBar.setProgressBackgroundTintList(inactiveTint);
     }
 
-    void styleDialog(AlertDialog dialog) {
+    public void styleDialog(AlertDialog dialog) {
         if (dialog == null) {
             return;
         }
@@ -2144,7 +2165,7 @@ public class MainActivity extends Activity {
         return drawable;
     }
 
-    void performTapHaptic(View view) {
+    public void performTapHaptic(View view) {
         if (view == null) {
             return;
         }
@@ -2158,7 +2179,7 @@ public class MainActivity extends Activity {
         view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK);
     }
 
-    void attachDialogButtonHaptics(AlertDialog dialog) {
+    public void attachDialogButtonHaptics(AlertDialog dialog) {
         if (dialog == null) {
             return;
         }
@@ -2180,11 +2201,11 @@ public class MainActivity extends Activity {
         });
     }
 
-    void showToast(String message) {
+    public void showToast(String message) {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
     }
 
-    void restartSystemUi() {
+    public void restartSystemUi() {
         Intent homeIntent = new Intent(Intent.ACTION_MAIN);
         homeIntent.addCategory(Intent.CATEGORY_HOME);
         homeIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -2199,11 +2220,11 @@ public class MainActivity extends Activity {
                 SYSTEM_UI_RESTART_DELAY_MS);
     }
 
-    void restartLauncher() {
+    public void restartLauncher() {
         restartPackageProcess(PACKAGE_FLYME_LAUNCHER, "系统桌面");
     }
 
-    void restartSystemUiTools() {
+    public void restartSystemUiTools() {
         restartRootCommands("SystemUITools", new String[]{
                 "pkill -f " + PACKAGE_FLYME_SYSTEMUI_TOOLS,
                 "killall " + PACKAGE_FLYME_SYSTEMUI_TOOLS,
@@ -2211,7 +2232,7 @@ public class MainActivity extends Activity {
         });
     }
 
-    void restartOneMindPps() {
+    public void restartOneMindPps() {
         restartRootCommands("OneMind/PPS", new String[]{
                 "cmd package set-stopped-state " + PACKAGE_MEIZU_PPS + " false",
                 "pkill -f " + PACKAGE_MEIZU_PPS,
@@ -2219,7 +2240,7 @@ public class MainActivity extends Activity {
         }, false);
     }
 
-    void detectOneMindHookPoints(TextView statusView) {
+    public void detectOneMindHookPoints(TextView statusView) {
         if (statusView != null) {
             statusView.setText("检测中...");
         }
@@ -2290,7 +2311,7 @@ public class MainActivity extends Activity {
         }).start();
     }
 
-    LinearLayout card(int color, int radiusDp) {
+    public LinearLayout card(int color, int radiusDp) {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(16), dp(12), dp(16), dp(12));
@@ -2298,11 +2319,11 @@ public class MainActivity extends Activity {
         return card;
     }
 
-    TextView chip(String text, int backgroundColor, int textColor) {
+    public TextView chip(String text, int backgroundColor, int textColor) {
         return settingsUiFactory.chip(text, backgroundColor, textColor);
     }
 
-    TextView filledButton(String text, int backgroundColor, int textColor) {
+    public TextView filledButton(String text, int backgroundColor, int textColor) {
         return settingsUiFactory.filledButton(text, backgroundColor, textColor);
     }
 
@@ -2310,39 +2331,39 @@ public class MainActivity extends Activity {
         return colorBackground;
     }
 
-    int surfaceColor() {
+    public int surfaceColor() {
         return colorSurface;
     }
 
-    int surfaceSoftColor() {
+    public int surfaceSoftColor() {
         return colorSurfaceSoft;
     }
 
-    int surfaceStrongColor() {
+    public int surfaceStrongColor() {
         return colorSurfaceStrong;
     }
 
-    int featureSurfaceColor() {
+    public int featureSurfaceColor() {
         return colorFeatureSurface;
     }
 
-    int featureStrokeColor() {
+    public int featureStrokeColor() {
         return colorFeatureStroke;
     }
 
-    int textColor() {
+    public int textColor() {
         return colorText;
     }
 
-    int subtextColor() {
+    public int subtextColor() {
         return colorSubtext;
     }
 
-    int primaryColor() {
+    public int primaryColor() {
         return colorPrimary;
     }
 
-    int primaryContainerColor() {
+    public int primaryContainerColor() {
         return colorPrimaryContainer;
     }
 
@@ -2354,7 +2375,7 @@ public class MainActivity extends Activity {
         return 0xFF625B71;
     }
 
-    int tertiaryColor() {
+    public int tertiaryColor() {
         return 0xFF7D5260;
     }
 
@@ -2362,43 +2383,43 @@ public class MainActivity extends Activity {
         return 0xFFB3261E;
     }
 
-    int strokeColor() {
+    public int strokeColor() {
         return colorStroke;
     }
 
-    String githubUrl() {
+    public String githubUrl() {
         return GITHUB_URL;
     }
 
-    String qqGroupUrl() {
+    public String qqGroupUrl() {
         return QQ_GROUP_URL;
     }
 
-    String qqGroupNumber() {
+    public String qqGroupNumber() {
         return QQ_GROUP_NUMBER;
     }
 
-    String supportedScopesSummary() {
+    public String supportedScopesSummary() {
         return "android / com.android.systemui / 主流输入法";
     }
 
-    SharedPreferences prefs() {
+    public SharedPreferences prefs() {
         return prefs;
     }
 
-    ClockExpressionEditor clockExpressionEditor() {
+    public ClockExpressionEditor clockExpressionEditor() {
         return clockExpressionEditor;
     }
 
-    ImeToolbarEditor imeToolbarEditor() {
+    public ImeToolbarEditor imeToolbarEditor() {
         return imeToolbarEditor;
     }
 
-    ArrayList<PositionOffsetSliderBinding> positionTuningSliderBindings() {
+    public ArrayList<PositionOffsetSliderBinding> positionTuningSliderBindings() {
         return positionTuningSliderBindings;
     }
 
-    void openExternalLink(String url) {
+    public void openExternalLink(String url) {
         if (TextUtils.isEmpty(url)) {
             return;
         }
@@ -2409,87 +2430,87 @@ public class MainActivity extends Activity {
         }
     }
 
-    View createIconSizingCard() {
+    public View createIconSizingCard() {
         return settingsCardFactory.createIconSizingCard();
     }
 
-    View createBatterySettingsCard() {
+    public View createBatterySettingsCard() {
         return settingsCardFactory.createBatterySettingsCard();
     }
 
-    View createNotificationSettingsCard() {
+    public View createNotificationSettingsCard() {
         return settingsCardFactory.createNotificationSettingsCard();
     }
 
-    View createSignalSettingsCard() {
+    public View createSignalSettingsCard() {
         return settingsCardFactory.createSignalSettingsCard();
     }
 
-    View createConnectionRateSettingsCard() {
+    public View createConnectionRateSettingsCard() {
         return settingsCardFactory.createConnectionRateSettingsCard();
     }
 
-    View createTimeExpressionSettingsCard() {
+    public View createTimeExpressionSettingsCard() {
         return settingsCardFactory.createTimeExpressionSettingsCard();
     }
 
-    View createTimeInteractionSettingsCard() {
+    public View createTimeInteractionSettingsCard() {
         return settingsCardFactory.createTimeInteractionSettingsCard();
     }
 
-    View createTimeTypographySettingsCard() {
+    public View createTimeTypographySettingsCard() {
         return settingsCardFactory.createTimeTypographySettingsCard();
     }
 
-    View createMBackActionSettingsCard() {
+    public View createMBackActionSettingsCard() {
         return settingsCardFactory.createMBackActionSettingsCard();
     }
 
-    View createWindowModeSideGestureSettingsCard() {
+    public View createWindowModeSideGestureSettingsCard() {
         return settingsCardFactory.createWindowModeSideGestureSettingsCard();
     }
 
-    View createCarLinkSettingsCard() {
+    public View createCarLinkSettingsCard() {
         return settingsCardFactory.createCarLinkSettingsCard();
     }
 
-    View createMBackNavigationSettingsCard() {
+    public View createMBackNavigationSettingsCard() {
         return settingsCardFactory.createMBackNavigationSettingsCard();
     }
 
-    View createImeToolbarSettingsCard() {
+    public View createImeToolbarSettingsCard() {
         return settingsCardFactory.createImeToolbarSettingsCard();
     }
 
-    View createLauncherRecentsSettingsCard() {
+    public View createLauncherRecentsSettingsCard() {
         return settingsCardFactory.createLauncherRecentsSettingsCard();
     }
 
-    View createSystemAppearanceSettingsCard() {
+    public View createSystemAppearanceSettingsCard() {
         return settingsCardFactory.createSystemAppearanceSettingsCard();
     }
 
-    View createAdvancedToolsCard() {
+    public View createAdvancedToolsCard() {
         return settingsCardFactory.createAdvancedToolsCard();
     }
 
-    View createConfigManagementCard() {
+    public View createConfigManagementCard() {
         return settingsCardFactory.createConfigManagementCard();
     }
 
-    View createPerformanceDebugCard() {
+    public View createPerformanceDebugCard() {
         return settingsCardFactory.createPerformanceDebugCard();
     }
 
-    View createOneMindPerfControlCard() {
+    public View createOneMindPerfControlCard() {
         return settingsCardFactory.createOneMindPerfControlCard();
     }
 
-    View createMzSafeOptimizationCard() {
+    public View createMzSafeOptimizationCard() {
         return settingsCardFactory.createMzSafeOptimizationCard();
     }
 
-    View createPositionTuningSettingsCard() {
+    public View createPositionTuningSettingsCard() {
         return settingsCardFactory.createPositionTuningSettingsCard();
     }
 
@@ -2497,19 +2518,19 @@ public class MainActivity extends Activity {
         return settingsCardFactory.createCameraCirclePositionCard();
     }
 
-    View createLauncherStackParamsSettingsCard() {
+    public View createLauncherStackParamsSettingsCard() {
         return settingsCardFactory.createLauncherStackParamsSettingsCard();
     }
 
-    View createTelephonyDebugSettingsCard() {
+    public View createTelephonyDebugSettingsCard() {
         return settingsCardFactory.createTelephonyDebugSettingsCard();
     }
 
-    View buildSectionCard(String titleText, String subtitleText, View content) {
+    public View buildSectionCard(String titleText, String subtitleText, View content) {
         return buildSectionCard(titleText, subtitleText, content, false);
     }
 
-    View buildSectionCard(String titleText, String subtitleText, View content, boolean expanded) {
+    public View buildSectionCard(String titleText, String subtitleText, View content, boolean expanded) {
         LinearLayout card = card(colorSurface, 24);
         card.setPadding(0, 0, 0, 0);
         card.setClipToOutline(true);
@@ -2638,23 +2659,23 @@ public class MainActivity extends Activity {
         }
     }
 
-    GradientDrawable roundRect(int color, int radiusDp) {
+    public GradientDrawable roundRect(int color, int radiusDp) {
         return settingsUiFactory.roundRect(color, radiusDp);
     }
 
-    GradientDrawable outlinedRect(int color, int strokeColor, int strokeWidthDp, int radiusDp) {
+    public GradientDrawable outlinedRect(int color, int strokeColor, int strokeWidthDp, int radiusDp) {
         return settingsUiFactory.outlinedRect(color, strokeColor, strokeWidthDp, radiusDp);
     }
 
-    LinearLayout.LayoutParams matchWrap() {
+    public LinearLayout.LayoutParams matchWrap() {
         return settingsUiFactory.matchWrap();
     }
 
-    LinearLayout.LayoutParams matchWrapWithTop(int topDp) {
+    public LinearLayout.LayoutParams matchWrapWithTop(int topDp) {
         return settingsUiFactory.matchWrapWithTop(topDp);
     }
 
-    int dp(int value) {
+    public int dp(int value) {
         return settingsUiFactory.dp(value);
     }
 

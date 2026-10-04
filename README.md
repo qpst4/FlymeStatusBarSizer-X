@@ -113,6 +113,32 @@ Telephony 调试用于模拟插卡数量、网络类型和信号等级，以检�
 
 在“高级与调试 → 配置管理”中导出或导入配置，也可恢复默认。恢复后若界面没有更新，重启对应组件。
 
+## 源码结构与构建
+
+Java 源码位于 `app/src/main/java/com/example/flymestatusbarsizer/`，按以下职责组织：
+
+| 路径 | 职责 |
+| --- | --- |
+| `MainActivity.java`、`FlymeStatusBarSizer.java` | 设置 Activity 与 Xposed 模块入口，保留原完整类名 |
+| `config/` | 设置存储、运行时配置与跨进程同步 |
+| `ui/` | 设置页面控制器、通用界面组件与颜色选择器 |
+| `util/` | 通用反射工具 |
+| `feature/battery/`、`feature/signal/`、`feature/wifi/` | 电池、信号和 Wi-Fi 绘制、预览与编辑 |
+| `feature/statusbar/`、`feature/network/` | 状态栏场景着色、图标尺寸、组合预览与网速显隐 |
+| `feature/clock/`、`feature/ime/` | 时钟与输入法功能，包括对应编辑器 |
+| `feature/launcher/` | 桌面外观、最近任务与堆叠参数，`organizer/` 存放桌面整理功能 |
+| 其他 `feature/` 子包 | mBack、小窗、CarLink、OneMind 和手机管家等功能 |
+
+单元测试位于 `app/src/test/java/`，包结构与被测功能对应；状态栏场景检查也由 Gradle 的 Robolectric 测试运行。新增功能类放入对应功能包，跨功能共享配置和工具分别放入 `config/`、`util/`。Android 资源仍位于 `app/src/main/res/`。
+
+使用 JDK 17 或更高版本和 Android SDK 36，在项目根目录执行：
+
+```bash
+./gradlew :app:testDebugUnitTest :app:assembleDebug
+```
+
+`com.android.systemui/` 等本机提取资料不属于项目源码，不参与构建或提交。
+
 ## 反馈与交流
 
 - [GitHub Issues](https://github.com/shenymo/FlymeStatusBarSizer/issues)：提交问题和功能建议。

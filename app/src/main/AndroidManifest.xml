@@ -45,7 +45,7 @@
         </activity-alias>
 
         <provider
-            android:name=".LauncherOrganizerProvider"
+            android:name=".feature.launcher.organizer.LauncherOrganizerProvider"
             android:authorities="${applicationId}.organizer"
             android:exported="true" />
     </application>
