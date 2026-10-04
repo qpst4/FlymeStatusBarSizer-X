@@ -4,6 +4,7 @@ import android.app.Dialog;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.PixelFormat;
+import android.graphics.Rect;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
@@ -129,13 +130,18 @@ public class AssistantWindowBackgroundTest {
         Dialog dialog = new Dialog(RuntimeEnvironment.getApplication());
         FrameLayout host = new FrameLayout(dialog.getContext());
         dialog.setContentView(host);
+        dialog.getWindow().setLayout(400, 600);
         dialog.show();
         Dialog nextDialog = new Dialog(RuntimeEnvironment.getApplication());
         FrameLayout nextHost = new FrameLayout(nextDialog.getContext());
         nextDialog.setContentView(nextHost);
+        nextDialog.getWindow().setLayout(400, 600);
         nextDialog.show();
         shadowOf(Looper.getMainLooper()).idle();
+        host.layout(0, 0, 200, 300);
+        nextHost.layout(0, 0, 200, 300);
         FrameLayout decor = new FrameLayout(dialog.getContext());
+        decor.layout(0, 0, 100, 200);
         ColorDrawable original = new ColorDrawable(Color.TRANSPARENT);
         decor.setBackground(original);
         TextView card = new TextView(dialog.getContext());
@@ -148,6 +154,7 @@ public class AssistantWindowBackgroundTest {
         background.apply();
         assertTrue(decor.getBackground() instanceof ColorDrawable);
         host.addView(decor);
+        decor.getViewTreeObserver().dispatchOnPreDraw();
         // Check the real framework's region registration without asking the legacy software
         // test canvas to draw a hardware RenderNode. SurfaceFlinger output needs a device.
         assertTrue(decor.isAttachedToWindow());
@@ -188,6 +195,71 @@ public class AssistantWindowBackgroundTest {
         assertSame(original, decor.getBackground());
         assertEquals(false, AssistantReflection.call(aggregator, "hasRegions"));
         nextDialog.dismiss();
+        dialog.dismiss();
+    }
+
+    @Test @Config(sdk = 31)
+    public void blurMovesWithContentAndDisappearsBeforeTheWindowIsRemoved() throws Exception {
+        Dialog dialog = new Dialog(RuntimeEnvironment.getApplication());
+        FrameLayout panel = new FrameLayout(dialog.getContext());
+        Drawable stationaryBackground = new ColorDrawable(Color.TRANSPARENT);
+        panel.setBackground(stationaryBackground);
+        dialog.setContentView(panel);
+        dialog.getWindow().setLayout(400, 600);
+        dialog.show();
+        shadowOf(Looper.getMainLooper()).idle();
+        panel.layout(0, 0, 200, 300);
+        FrameLayout content = new FrameLayout(dialog.getContext());
+        Drawable original = new ColorDrawable(Color.TRANSPARENT);
+        content.setBackground(original);
+        // Match SlidingPanelLayout: content is laid out just offscreen, then translated inward.
+        content.layout(-200, 0, 0, 300);
+        AssistantWindowBackground background = new AssistantWindowBackground(content, 3);
+        background.apply();
+        panel.addView(content);
+        Drawable blur = content.getBackground();
+        Object aggregator = AssistantReflection.get(blur, "mAggregator");
+        content.getViewTreeObserver().dispatchOnPreDraw();
+        assertEquals(false, AssistantReflection.call(aggregator, "hasRegions"));
+
+        content.setTranslationX(200);
+        content.getViewTreeObserver().dispatchOnPreDraw();
+        assertSame(content, blur.getCallback());
+        assertSame(stationaryBackground, panel.getBackground());
+        assertEquals(1f, (Float) AssistantReflection.get(blur, "mAlpha"), 0);
+        assertEquals(true, AssistantReflection.call(aggregator, "hasRegions"));
+
+        // Halfway through closing, only the same half of the panel remains on screen.
+        Rect visible = new Rect();
+        content.setTranslationX(100);
+        content.setAlpha(0.5f);
+        panel.setAlpha(0.8f);
+        content.getViewTreeObserver().dispatchOnPreDraw();
+        assertTrue(content.getGlobalVisibleRect(visible));
+        assertEquals(100, visible.width());
+        assertEquals(102 / 255f, (Float) AssistantReflection.get(blur, "mAlpha"), 0.001f);
+        assertEquals(0.5f, content.getAlpha(), 0);
+
+        // Cancelling a close restores the same blur without a second independent animation.
+        content.setTranslationX(200);
+        content.setAlpha(1);
+        panel.setAlpha(1);
+        content.getViewTreeObserver().dispatchOnPreDraw();
+        assertSame(blur, content.getBackground());
+        assertEquals(1f, (Float) AssistantReflection.get(blur, "mAlpha"), 0);
+
+        content.setTranslationX(0);
+        content.getViewTreeObserver().dispatchOnPreDraw();
+        assertTrue(dialog.isShowing());
+        assertTrue(content.isAttachedToWindow());
+        assertEquals(0f, (Float) AssistantReflection.get(blur, "mAlpha"), 0);
+        assertEquals(false, AssistantReflection.call(aggregator, "hasRegions"));
+        background.restore();
+        content.setTranslationX(200);
+        content.getViewTreeObserver().dispatchOnPreDraw();
+        assertSame(original, content.getBackground());
+        assertSame(stationaryBackground, panel.getBackground());
+        assertEquals(false, AssistantReflection.call(aggregator, "hasRegions"));
         dialog.dismiss();
     }
 

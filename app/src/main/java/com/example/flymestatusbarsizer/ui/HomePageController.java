@@ -68,6 +68,10 @@ public final class HomePageController {
                 "修改文件夹、后台布局或堆叠参数后，重启系统桌面。",
                 "重启", activity::restartLauncher);
         activity.addDivider(content);
+        activity.addActionButtonRow(content, "Aicy 纵览",
+                "更新全局负一屏功能后，重启 Aicy 纵览。",
+                "重启", activity::restartAssistant);
+        activity.addDivider(content);
         activity.addActionButtonRow(content, "SystemUITools",
                 "重启后小窗相关修改立即重新加载。",
                 "重启", activity::restartSystemUiTools);

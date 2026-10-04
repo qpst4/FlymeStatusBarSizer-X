@@ -70,7 +70,9 @@ final class AssistantWindowSession {
         overlayManager = windowContext.getSystemService(WindowManager.class);
         dark = (windowContext.getResources().getConfiguration().uiMode
                 & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
-        background = new AssistantWindowBackground(decor,
+        View slidingContent = (View) AssistantReflection.get(panel, "mContentView");
+        if (slidingContent == null) throw new IllegalStateException("Assistant sliding content is not ready");
+        background = new AssistantWindowBackground(slidingContent,
                 windowContext.getResources().getDisplayMetrics().density);
     }
 

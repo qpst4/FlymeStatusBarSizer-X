@@ -94,6 +94,7 @@ public class MainActivity extends Activity {
     public static final int IME_CONTROL_BAR_POOL_ROW_ITEM_COUNT = 3;
     private static final String PACKAGE_SYSTEM_UI = "com.android.systemui";
     private static final String PACKAGE_FLYME_LAUNCHER = "com.meizu.flyme.launcher";
+    private static final String PACKAGE_MEIZU_ASSISTANT = "com.meizu.assistant";
     private static final String PACKAGE_FLYME_SYSTEMUI_TOOLS = "com.flyme.systemuitools";
     private static final String PACKAGE_MEIZU_PPS = "com.meizu.pps";
     private static final String PACKAGE_CARLINK = "com.upuphone.carlink";
@@ -2222,6 +2223,15 @@ public class MainActivity extends Activity {
 
     public void restartLauncher() {
         restartPackageProcess(PACKAGE_FLYME_LAUNCHER, "系统桌面");
+    }
+
+    public void restartAssistant() {
+        // Keep the bound service eligible for automatic reconnection from Launcher/SystemUI.
+        // force-stop would also mark the package stopped and remove its service bindings.
+        restartRootCommands("Aicy 纵览", new String[]{
+                "killall " + PACKAGE_MEIZU_ASSISTANT,
+                "pkill -f " + PACKAGE_MEIZU_ASSISTANT
+        });
     }
 
     public void restartSystemUiTools() {
