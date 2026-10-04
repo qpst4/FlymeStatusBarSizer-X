@@ -2,6 +2,7 @@ package com.example.flymestatusbarsizer.ui;
 
 import com.example.flymestatusbarsizer.MainActivity;
 import com.example.flymestatusbarsizer.config.SettingsStore;
+import com.example.flymestatusbarsizer.feature.assistant.AssistantGesturePreviewLayout;
 import com.example.flymestatusbarsizer.feature.battery.BatteryTextFontHelper;
 import com.example.flymestatusbarsizer.feature.battery.CircleBatteryAnimationEditor;
 import com.example.flymestatusbarsizer.feature.battery.CircleBatteryAppearanceEditor;
@@ -366,15 +367,24 @@ public final class SettingsCardFactory {
     }
 
     public View createAssistantGestureSettingsCard() {
-        LinearLayout page = new LinearLayout(activity);
-        page.setOrientation(LinearLayout.VERTICAL);
+        AssistantGesturePreviewLayout page = new AssistantGesturePreviewLayout(
+                activity, activity.prefs(), activity.primaryColor());
         activity.addSwitchRow(page, "左侧长滑打开负一屏",
                 "从屏幕左侧向内滑动并按住，距离和时间都达到阈值时打开负一屏。关闭后回到原应用。",
                 SettingsStore.KEY_ASSISTANT_GESTURE_ENABLED, SettingsStore.DEFAULT_ASSISTANT_GESTURE_ENABLED);
         activity.addDivider(page);
-        activity.addSliderRow(page, "滑动距离", "从起手位置向右移动的距离。",
+        activity.addSliderRow(page, "滑动距离", "从起手位置向右移动的最短距离；达到或超过都有效，没有水平距离上限。",
                 SettingsStore.KEY_ASSISTANT_GESTURE_DISTANCE_DP, SettingsStore.DEFAULT_ASSISTANT_GESTURE_DISTANCE_DP,
                 40, 240, "dp");
+        activity.addActionButtonRow(page, "屏幕距离标识",
+                "以屏幕左边缘为起点，竖线标出当前最短滑动距离；超过仍有效，还需满足按住时间。",
+                "显示标识", page::showPreview);
+        TextView previewHint = new TextView(activity);
+        previewHint.setText("调节距离时自动显示屏幕标线，5 秒后消失；离开页面或收起此项立即隐藏。");
+        previewHint.setTextColor(activity.subtextColor());
+        previewHint.setTextSize(13);
+        previewHint.setPadding(0, activity.dp(8), 0, activity.dp(12));
+        page.addView(previewHint, activity.matchWrap());
         activity.addSliderRow(page, "按住时间", "从手指按下开始计时；滑够距离后保持按住即可触发。",
                 SettingsStore.KEY_ASSISTANT_GESTURE_HOLD_MS, SettingsStore.DEFAULT_ASSISTANT_GESTURE_HOLD_MS,
                 250, 2000, "ms");

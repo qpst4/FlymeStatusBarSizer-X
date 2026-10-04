@@ -114,7 +114,7 @@ public final class SettingsStore {
     public static final String KEY_ASSISTANT_GESTURE_DISTANCE_DP = "assistant_gesture_distance_dp";
     public static final String KEY_ASSISTANT_GESTURE_HOLD_MS = "assistant_gesture_hold_ms";
     public static final boolean DEFAULT_ASSISTANT_GESTURE_ENABLED = false;
-    public static final int DEFAULT_ASSISTANT_GESTURE_DISTANCE_DP = 80;
+    public static final int DEFAULT_ASSISTANT_GESTURE_DISTANCE_DP = 140;
     public static final int DEFAULT_ASSISTANT_GESTURE_HOLD_MS = 600;
     public static final String KEY_MBACK_LONG_TOUCH_ACTION = "mback_long_touch_action";
     public static final String KEY_MBACK_LONG_TOUCH_INTENT_URI = "mback_long_touch_intent_uri";

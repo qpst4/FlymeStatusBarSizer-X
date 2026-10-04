@@ -48,7 +48,7 @@ public class AssistantWindowIdentityTest {
         for (String key : new String[]{SettingsStore.KEY_ASSISTANT_GESTURE_DISTANCE_DP, SettingsStore.KEY_ASSISTANT_GESTURE_HOLD_MS})
             assertTrue(Arrays.asList(SettingsStore.INT_KEYS).contains(key));
         assertFalse(SettingsStore.defaultBoolean(SettingsStore.KEY_ASSISTANT_GESTURE_ENABLED));
-        assertEquals(80, SettingsStore.defaultInt(SettingsStore.KEY_ASSISTANT_GESTURE_DISTANCE_DP));
+        assertEquals(140, SettingsStore.defaultInt(SettingsStore.KEY_ASSISTANT_GESTURE_DISTANCE_DP));
         assertEquals(600, SettingsStore.defaultInt(SettingsStore.KEY_ASSISTANT_GESTURE_HOLD_MS));
     }
 }
