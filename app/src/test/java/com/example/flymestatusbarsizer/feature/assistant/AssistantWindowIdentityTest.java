@@ -1,10 +1,13 @@
 package com.example.flymestatusbarsizer.feature.assistant;
 
 import android.app.Dialog;
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Binder;
 import android.view.Window;
 import android.view.WindowManager;
 import com.example.flymestatusbarsizer.config.SettingsStore;
+import com.example.flymestatusbarsizer.config.ModuleConfig;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
@@ -63,10 +66,35 @@ public class AssistantWindowIdentityTest {
 
     @Test public void gestureSettingsParticipateInRemoteSyncAndBackupDefaults() {
         assertTrue(Arrays.asList(SettingsStore.BOOLEAN_KEYS).contains(SettingsStore.KEY_ASSISTANT_GESTURE_ENABLED));
-        for (String key : new String[]{SettingsStore.KEY_ASSISTANT_GESTURE_DISTANCE_DP, SettingsStore.KEY_ASSISTANT_GESTURE_HOLD_MS})
+        assertTrue(Arrays.asList(SettingsStore.BOOLEAN_KEYS).contains(SettingsStore.KEY_ASSISTANT_GESTURE_VERTICAL_LIMIT_ENABLED));
+        for (String key : new String[]{SettingsStore.KEY_ASSISTANT_GESTURE_DISTANCE_DP,
+                SettingsStore.KEY_ASSISTANT_GESTURE_HOLD_MS, SettingsStore.KEY_ASSISTANT_GESTURE_VERTICAL_LIMIT_DP})
             assertTrue(Arrays.asList(SettingsStore.INT_KEYS).contains(key));
         assertFalse(SettingsStore.defaultBoolean(SettingsStore.KEY_ASSISTANT_GESTURE_ENABLED));
         assertEquals(140, SettingsStore.defaultInt(SettingsStore.KEY_ASSISTANT_GESTURE_DISTANCE_DP));
         assertEquals(600, SettingsStore.defaultInt(SettingsStore.KEY_ASSISTANT_GESTURE_HOLD_MS));
+        assertFalse(SettingsStore.defaultBoolean(SettingsStore.KEY_ASSISTANT_GESTURE_VERTICAL_LIMIT_ENABLED));
+        assertEquals(48, SettingsStore.defaultInt(SettingsStore.KEY_ASSISTANT_GESTURE_VERTICAL_LIMIT_DP));
+    }
+
+    @Test public void verticalLimitConfigLoadsToggleAndClampsStoredDistance() throws Exception {
+        SharedPreferences prefs = RuntimeEnvironment.getApplication()
+                .getSharedPreferences("vertical-limit-config", Context.MODE_PRIVATE);
+        prefs.edit().clear().commit();
+        java.lang.reflect.Method load = ModuleConfig.class.getDeclaredMethod("fromSharedPreferences", SharedPreferences.class);
+        load.setAccessible(true);
+        ModuleConfig config = (ModuleConfig) load.invoke(null, prefs);
+        assertNotNull(config);
+        assertFalse(config.assistantGestureVerticalLimitEnabled);
+        assertEquals(48, config.assistantGestureVerticalLimitDp);
+        for (int[] values : new int[][]{{-1, 8}, {96, 96}, {1000, 240}}) {
+            prefs.edit().putBoolean(SettingsStore.KEY_ASSISTANT_GESTURE_VERTICAL_LIMIT_ENABLED, true)
+                    .putInt(SettingsStore.KEY_ASSISTANT_GESTURE_VERTICAL_LIMIT_DP, values[0]).commit();
+            config = (ModuleConfig) load.invoke(null, prefs);
+            assertTrue(config.assistantGestureVerticalLimitEnabled);
+            assertEquals(values[1], config.assistantGestureVerticalLimitDp);
+        }
+        prefs.edit().putBoolean(SettingsStore.KEY_ASSISTANT_GESTURE_VERTICAL_LIMIT_ENABLED, false).commit();
+        assertFalse(((ModuleConfig) load.invoke(null, prefs)).assistantGestureVerticalLimitEnabled);
     }
 }

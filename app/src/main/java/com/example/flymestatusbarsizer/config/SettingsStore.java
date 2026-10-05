@@ -119,9 +119,15 @@ public final class SettingsStore {
     public static final int DEFAULT_ASSISTANT_GESTURE_SIDE = ASSISTANT_GESTURE_SIDE_LEFT;
     public static final String KEY_ASSISTANT_GESTURE_DISTANCE_DP = "assistant_gesture_distance_dp";
     public static final String KEY_ASSISTANT_GESTURE_HOLD_MS = "assistant_gesture_hold_ms";
+    public static final String KEY_ASSISTANT_GESTURE_VERTICAL_LIMIT_ENABLED = "assistant_gesture_vertical_limit_enabled";
+    public static final String KEY_ASSISTANT_GESTURE_VERTICAL_LIMIT_DP = "assistant_gesture_vertical_limit_dp";
     public static final boolean DEFAULT_ASSISTANT_GESTURE_ENABLED = false;
     public static final int DEFAULT_ASSISTANT_GESTURE_DISTANCE_DP = 140;
     public static final int DEFAULT_ASSISTANT_GESTURE_HOLD_MS = 600;
+    public static final boolean DEFAULT_ASSISTANT_GESTURE_VERTICAL_LIMIT_ENABLED = false;
+    public static final int DEFAULT_ASSISTANT_GESTURE_VERTICAL_LIMIT_DP = 48;
+    public static final int MIN_ASSISTANT_GESTURE_VERTICAL_LIMIT_DP = 8;
+    public static final int MAX_ASSISTANT_GESTURE_VERTICAL_LIMIT_DP = 240;
     public static final String KEY_MBACK_LONG_TOUCH_ACTION = "mback_long_touch_action";
     public static final String KEY_MBACK_LONG_TOUCH_INTENT_URI = "mback_long_touch_intent_uri";
     public static final String KEY_WINDOWMODE_SIDE_GESTURE_ENABLED = "windowmode_side_gesture_enabled";
@@ -546,6 +552,7 @@ public final class SettingsStore {
             KEY_ASSISTANT_GESTURE_SIDE,
             KEY_ASSISTANT_GESTURE_DISTANCE_DP,
             KEY_ASSISTANT_GESTURE_HOLD_MS,
+            KEY_ASSISTANT_GESTURE_VERTICAL_LIMIT_DP,
             CircleBatteryAnimationConfig.NORMAL,
             CircleBatteryAnimationConfig.CHARGING,
             CircleBatteryAnimationConfig.PALETTE,
@@ -675,6 +682,7 @@ public final class SettingsStore {
     public static final String[] BOOLEAN_KEYS = StatusBarIconVisibility.appendPreferenceKeys(new String[]{
             KEY_SHARE_TARGETS_ENABLED,
             KEY_ASSISTANT_GESTURE_ENABLED,
+            KEY_ASSISTANT_GESTURE_VERTICAL_LIMIT_ENABLED,
             CircleBatteryAnimationConfig.ENABLED,
             CircleBatteryAnimationConfig.CHARGING_ONLY,
             CircleBatteryAnimationConfig.EVENTS,
@@ -937,6 +945,7 @@ public final class SettingsStore {
             case KEY_ASSISTANT_GESTURE_SIDE: return DEFAULT_ASSISTANT_GESTURE_SIDE;
             case KEY_ASSISTANT_GESTURE_DISTANCE_DP: return DEFAULT_ASSISTANT_GESTURE_DISTANCE_DP;
             case KEY_ASSISTANT_GESTURE_HOLD_MS: return DEFAULT_ASSISTANT_GESTURE_HOLD_MS;
+            case KEY_ASSISTANT_GESTURE_VERTICAL_LIMIT_DP: return DEFAULT_ASSISTANT_GESTURE_VERTICAL_LIMIT_DP;
             case KEY_POSITION_OFFSET_STORAGE_VERSION:
                 return POSITION_OFFSET_STORAGE_VERSION_CAMERA_HUNDREDTH_DP;
             case KEY_BATTERY_ICON_STYLE:
@@ -1164,6 +1173,7 @@ public final class SettingsStore {
         if (CircleBatteryAnimationConfig.isKey(key)) return CircleBatteryAnimationConfig.defaultBoolean(key);
         switch (key) {
             case KEY_ASSISTANT_GESTURE_ENABLED: return DEFAULT_ASSISTANT_GESTURE_ENABLED;
+            case KEY_ASSISTANT_GESTURE_VERTICAL_LIMIT_ENABLED: return DEFAULT_ASSISTANT_GESTURE_VERTICAL_LIMIT_ENABLED;
             case KEY_ENABLED:
                 return DEFAULT_ENABLED;
             case KEY_STATUS_BAR_TINT_ENABLED:
@@ -1322,6 +1332,11 @@ public final class SettingsStore {
     public static int normalizeAssistantGestureSide(int value) {
         return value == ASSISTANT_GESTURE_SIDE_RIGHT || value == ASSISTANT_GESTURE_SIDE_BOTH
                 ? value : DEFAULT_ASSISTANT_GESTURE_SIDE;
+    }
+
+    public static int normalizeAssistantGestureVerticalLimitDp(int value) {
+        return Math.max(MIN_ASSISTANT_GESTURE_VERTICAL_LIMIT_DP,
+                Math.min(MAX_ASSISTANT_GESTURE_VERTICAL_LIMIT_DP, value));
     }
 
     public static boolean assistantGestureAllowsSide(int side, boolean leftEdge) {

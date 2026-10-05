@@ -143,6 +143,99 @@ public class AssistantGesturePreviewTest {
         assertTrue(java.util.Arrays.asList(SettingsStore.INT_KEYS).contains(SettingsStore.KEY_ASSISTANT_GESTURE_SIDE));
     }
 
+    @Test public void verticalSettingsRefreshPreviewAndRestartTimeout() throws ReflectiveOperationException {
+        prefs.edit().putBoolean(SettingsStore.KEY_ASSISTANT_GESTURE_VERTICAL_LIMIT_ENABLED, true).apply();
+        shadowOf(Looper.getMainLooper()).idle();
+        assertNotNull(marker.getCallback());
+        assertEquals(true, AssistantReflection.get(marker, "vertical"));
+        assertEquals(true, AssistantReflection.get(marker, "verticalLimitEnabled"));
+        advance(4000);
+        prefs.edit().putInt(SettingsStore.KEY_ASSISTANT_GESTURE_VERTICAL_LIMIT_DP, 96).apply();
+        shadowOf(Looper.getMainLooper()).idle();
+        assertEquals(96, AssistantReflection.get(marker, "verticalLimitDp"));
+        advance(1000);
+        assertNotNull(marker.getCallback());
+        prefs.edit().putBoolean(SettingsStore.KEY_ASSISTANT_GESTURE_VERTICAL_LIMIT_ENABLED, false).apply();
+        shadowOf(Looper.getMainLooper()).idle();
+        assertEquals(false, AssistantReflection.get(marker, "verticalLimitEnabled"));
+        advance(4999);
+        assertNotNull(marker.getCallback());
+        advance(1);
+        assertNull(marker.getCallback());
+        preview.showPreview();
+        assertEquals(false, AssistantReflection.get(marker, "vertical"));
+    }
+
+    @Test @Config(qualifiers = "xhdpi")
+    public void verticalPreviewUsesDpAboveAndBelowOriginWithoutClampingBoundaryPositions() {
+        float density = preview.getResources().getDisplayMetrics().density;
+        for (boolean enabled : new boolean[]{false, true}) {
+            prefs.edit().putBoolean(SettingsStore.KEY_ASSISTANT_GESTURE_VERTICAL_LIMIT_ENABLED, enabled).apply();
+            for (int height : new int[]{1800, 400}) {
+                for (int limit : new int[]{8, 48, 240}) {
+                    prefs.edit().putInt(SettingsStore.KEY_ASSISTANT_GESTURE_VERTICAL_LIMIT_DP, limit).apply();
+                    shadowOf(Looper.getMainLooper()).idle();
+                    preview.showVerticalPreview();
+                    marker.setBounds(0, 0, 1000, height);
+                    java.util.Set<Float> boundaries = new java.util.HashSet<>();
+                    java.util.List<String> labels = new java.util.ArrayList<>();
+                    float[] origin = {Float.NaN};
+                    marker.draw(new Canvas() {
+                        @Override public void drawLine(float x1, float y1, float x2, float y2, Paint paint) {
+                            assertEquals(0f, x1, 0);
+                            assertEquals(1000f, x2, 0);
+                            assertEquals(y1, y2, 0);
+                            if (paint.getPathEffect() != null) origin[0] = y1;
+                            else boundaries.add(y1);
+                        }
+                        @Override public void drawText(String text, float x, float y, Paint paint) {
+                            labels.add(text);
+                            assertTrue(x >= 0);
+                            assertTrue(x + paint.measureText(text) <= 1000);
+                            assertTrue(y + paint.ascent() >= 0);
+                            assertTrue(y + paint.descent() <= height);
+                        }
+                    });
+                    assertTrue(Float.isFinite(origin[0]));
+                    assertEquals(2, boundaries.size());
+                    assertTrue(boundaries.contains(origin[0] - limit * density));
+                    assertTrue(boundaries.contains(origin[0] + limit * density));
+                    assertEquals(3, labels.size());
+                    assertTrue(labels.get(0).startsWith("上移 " + limit + "dp"));
+                    assertTrue(labels.get(1).startsWith("下移 " + limit + "dp"));
+                    assertTrue(labels.get(2).contains(enabled ? "实际随按下位置" : "限制未开启"));
+                    if (height == 400 && limit == 240) {
+                        assertTrue(labels.get(0).contains("屏幕外"));
+                        assertTrue(labels.get(1).contains("屏幕外"));
+                    }
+                }
+            }
+        }
+    }
+
+    @Test public void verticalPreviewCleansUpOnFocusLossPageHideAndDetach() {
+        preview.showVerticalPreview();
+        assertNotNull(marker.getCallback());
+        controller.windowFocusChanged(false);
+        assertNull(marker.getCallback());
+        prefs.edit().putInt(SettingsStore.KEY_ASSISTANT_GESTURE_VERTICAL_LIMIT_DP, 80).apply();
+        shadowOf(Looper.getMainLooper()).idle();
+        assertNull(marker.getCallback());
+        controller.windowFocusChanged(true);
+        assertNull(marker.getCallback());
+        preview.showVerticalPreview();
+        pageHost.setVisibility(View.GONE);
+        assertNull(marker.getCallback());
+        pageHost.setVisibility(View.VISIBLE);
+        preview.showVerticalPreview();
+        assertNotNull(marker.getCallback());
+        pageHost.removeView(preview);
+        assertNull(marker.getCallback());
+        prefs.edit().putBoolean(SettingsStore.KEY_ASSISTANT_GESTURE_VERTICAL_LIMIT_ENABLED, true).apply();
+        advance(5000);
+        assertNull(marker.getCallback());
+    }
+
     @Test public void leavingPageOrLosingFocusClearsMarkerWithoutRestoringIt() {
         preview.showPreview();
         assertNotNull(marker.getCallback());

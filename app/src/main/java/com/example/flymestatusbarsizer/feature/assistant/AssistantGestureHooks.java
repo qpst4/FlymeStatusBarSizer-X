@@ -114,7 +114,9 @@ final class AssistantGestureHooks {
                     || ReflectUtils.getBooleanField(target, "mInterceptBack", false) || locked()) return;
             float density = context.getResources().getDisplayMetrics().density;
             state.begin(event.getX(), event.getY(), event.getDownTime(),
-                    config.assistantGestureDistanceDp * density, config.assistantGestureHoldMs, 12f * density, leftEdge);
+                    config.assistantGestureDistanceDp * density, config.assistantGestureHoldMs, 12f * density, leftEdge,
+                    config.assistantGestureVerticalLimitEnabled
+                            ? config.assistantGestureVerticalLimitDp * density : Float.POSITIVE_INFINITY);
             fromLeft = leftEdge;
             remember(event);
             handler.postAtTime(timeout, state.deadline());
@@ -122,6 +124,10 @@ final class AssistantGestureHooks {
 
         void move(MotionEvent event) {
             if (last == null) return;
+            // A batched excursion past the limit still cancels even if the finger has returned.
+            for (int i = 0; i < event.getHistorySize(); i++) {
+                state.move(event.getHistoricalX(i), event.getHistoricalY(i), event.getPointerCount());
+            }
             state.move(event.getX(), event.getY(), event.getPointerCount());
             remember(event);
         }

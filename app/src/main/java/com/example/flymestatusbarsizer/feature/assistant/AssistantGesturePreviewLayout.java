@@ -5,6 +5,7 @@ import android.content.SharedPreferences;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.ColorFilter;
+import android.graphics.DashPathEffect;
 import android.graphics.Paint;
 import android.graphics.PixelFormat;
 import android.graphics.drawable.Drawable;
@@ -24,6 +25,8 @@ public final class AssistantGesturePreviewLayout extends LinearLayout {
     private final SharedPreferences.OnSharedPreferenceChangeListener listener = (prefs, key) -> {
         if (SettingsStore.KEY_ASSISTANT_GESTURE_DISTANCE_DP.equals(key)
                 || SettingsStore.KEY_ASSISTANT_GESTURE_SIDE.equals(key)) showPreview();
+        else if (SettingsStore.KEY_ASSISTANT_GESTURE_VERTICAL_LIMIT_ENABLED.equals(key)
+                || SettingsStore.KEY_ASSISTANT_GESTURE_VERTICAL_LIMIT_DP.equals(key)) showVerticalPreview();
     };
 
     public AssistantGesturePreviewLayout(Context context, SharedPreferences prefs, int accentColor) {
@@ -34,6 +37,14 @@ public final class AssistantGesturePreviewLayout extends LinearLayout {
     }
 
     public void showPreview() {
+        showPreview(false);
+    }
+
+    public void showVerticalPreview() {
+        showPreview(true);
+    }
+
+    private void showPreview(boolean vertical) {
         if (!isAttachedToWindow() || !isShown() || !hasWindowFocus()
                 || getWindowVisibility() != VISIBLE) return;
         hidePreview();
@@ -42,6 +53,13 @@ public final class AssistantGesturePreviewLayout extends LinearLayout {
                 SettingsStore.DEFAULT_ASSISTANT_GESTURE_DISTANCE_DP)));
         overlayHost = getRootView();
         marker.distanceDp = distance;
+        marker.vertical = vertical;
+        marker.verticalLimitEnabled = SettingsStore.readBoolean(prefs,
+                SettingsStore.KEY_ASSISTANT_GESTURE_VERTICAL_LIMIT_ENABLED,
+                SettingsStore.DEFAULT_ASSISTANT_GESTURE_VERTICAL_LIMIT_ENABLED);
+        marker.verticalLimitDp = SettingsStore.normalizeAssistantGestureVerticalLimitDp(SettingsStore.readInt(prefs,
+                SettingsStore.KEY_ASSISTANT_GESTURE_VERTICAL_LIMIT_DP,
+                SettingsStore.DEFAULT_ASSISTANT_GESTURE_VERTICAL_LIMIT_DP));
         marker.side = SettingsStore.normalizeAssistantGestureSide(SettingsStore.readInt(prefs,
                 SettingsStore.KEY_ASSISTANT_GESTURE_SIDE, SettingsStore.DEFAULT_ASSISTANT_GESTURE_SIDE));
         marker.setBounds(0, 0, overlayHost.getWidth(), overlayHost.getHeight());
@@ -104,8 +122,11 @@ public final class AssistantGesturePreviewLayout extends LinearLayout {
         private final Paint outlinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint labelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint backgroundPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint originPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private int distanceDp;
         private int side;
+        private boolean vertical, verticalLimitEnabled;
+        private int verticalLimitDp;
 
         DistanceMarker(int accentColor) {
             linePaint.setColor(accentColor);
@@ -115,6 +136,9 @@ public final class AssistantGesturePreviewLayout extends LinearLayout {
             labelPaint.setColor(Color.WHITE);
             labelPaint.setTextSize(14f * getResources().getDisplayMetrics().scaledDensity);
             backgroundPaint.setColor(0xe6222222);
+            originPaint.setColor(accentColor);
+            originPaint.setStrokeWidth(dp(2));
+            originPaint.setPathEffect(new DashPathEffect(new float[]{dp(6), dp(6)}, 0));
         }
 
         @Override
@@ -127,6 +151,10 @@ public final class AssistantGesturePreviewLayout extends LinearLayout {
                 bottom -= insets.getSystemWindowInsetBottom();
             }
             float center = (top + bottom) / 2f;
+            if (vertical) {
+                drawVertical(canvas, top, bottom, center);
+                return;
+            }
             boolean both = side == SettingsStore.ASSISTANT_GESTURE_SIDE_BOTH;
             if (SettingsStore.assistantGestureAllowsSide(side, true)) {
                 drawSide(canvas, true, top, bottom, both ? center - dp(36) : center);
@@ -134,6 +162,44 @@ public final class AssistantGesturePreviewLayout extends LinearLayout {
             if (SettingsStore.assistantGestureAllowsSide(side, false)) {
                 drawSide(canvas, false, top, bottom, both ? center + dp(36) : center);
             }
+        }
+
+        private void drawVertical(Canvas canvas, float top, float bottom, float center) {
+            float upper = center - dp(verticalLimitDp);
+            float lower = center + dp(verticalLimitDp);
+            float width = getBounds().width();
+            canvas.drawLine(0, center, width, center, originPaint);
+            for (float y : new float[]{upper, lower}) {
+                canvas.drawLine(0, y, width, y, outlinePaint);
+                canvas.drawLine(0, y, width, y, linePaint);
+            }
+            drawVerticalLabel(canvas, "上移 " + verticalLimitDp + "dp 边界"
+                            + (upper < top ? "（屏幕外）" : ""),
+                    upper - dp(12) - labelPaint.descent(), top, bottom);
+            drawVerticalLabel(canvas, "下移 " + verticalLimitDp + "dp 边界"
+                            + (lower > bottom ? "（屏幕外）" : ""),
+                    lower + dp(12) - labelPaint.ascent(), top, bottom);
+            drawVerticalLabel(canvas, verticalLimitEnabled
+                            ? "示例起点 · 实际随按下位置" : "示例起点 · 限制未开启",
+                    center - (labelPaint.ascent() + labelPaint.descent()) / 2f, top, bottom);
+        }
+
+        private void drawVerticalLabel(Canvas canvas, String label, float baseline, float top, float bottom) {
+            float originalSize = labelPaint.getTextSize();
+            float availableWidth = Math.max(1, getBounds().width() - dp(32));
+            float textWidth = labelPaint.measureText(label);
+            if (textWidth > availableWidth) {
+                labelPaint.setTextSize(originalSize * availableWidth / textWidth);
+                textWidth = labelPaint.measureText(label);
+            }
+            float left = (getBounds().width() - textWidth) / 2f;
+            baseline = Math.max(top - labelPaint.ascent() + dp(6),
+                    Math.min(bottom - labelPaint.descent() - dp(6), baseline));
+            canvas.drawRoundRect(left - dp(8), baseline + labelPaint.ascent() - dp(6),
+                    left + textWidth + dp(8), baseline + labelPaint.descent() + dp(6),
+                    dp(8), dp(8), backgroundPaint);
+            canvas.drawText(label, left, baseline, labelPaint);
+            labelPaint.setTextSize(originalSize);
         }
 
         private void drawSide(Canvas canvas, boolean leftEdge, float top, float bottom, float center) {
@@ -164,6 +230,7 @@ public final class AssistantGesturePreviewLayout extends LinearLayout {
             outlinePaint.setAlpha(alpha);
             labelPaint.setAlpha(alpha);
             backgroundPaint.setAlpha(Math.round(alpha * 0xe6 / 255f));
+            originPaint.setAlpha(alpha);
             invalidateSelf();
         }
 
@@ -172,6 +239,7 @@ public final class AssistantGesturePreviewLayout extends LinearLayout {
             outlinePaint.setColorFilter(filter);
             labelPaint.setColorFilter(filter);
             backgroundPaint.setColorFilter(filter);
+            originPaint.setColorFilter(filter);
             invalidateSelf();
         }
 

@@ -386,8 +386,21 @@ public final class SettingsCardFactory {
         activity.addActionButtonRow(page, "屏幕距离标识",
                 "按所选侧边显示标识，两侧模式同时显示左右标线；竖线标出当前最短滑动距离；超过仍有效，还需满足按住时间。",
                 "显示标识", page::showPreview);
+        activity.addDivider(page);
+        activity.addSwitchRow(page, "限制上下偏移",
+                "默认关闭。开启后，相对本次按下位置向上或向下偏移超过设定距离，就取消本次负一屏触发；移回范围内也不会恢复，需重新起手。",
+                SettingsStore.KEY_ASSISTANT_GESTURE_VERTICAL_LIMIT_ENABLED,
+                SettingsStore.DEFAULT_ASSISTANT_GESTURE_VERTICAL_LIMIT_ENABLED);
+        activity.addSliderRow(page, "上下偏移上限", "仅在开启限制后生效；上下分别按此距离判断，等于上限仍有效，超过则取消。",
+                SettingsStore.KEY_ASSISTANT_GESTURE_VERTICAL_LIMIT_DP,
+                SettingsStore.DEFAULT_ASSISTANT_GESTURE_VERTICAL_LIMIT_DP,
+                SettingsStore.MIN_ASSISTANT_GESTURE_VERTICAL_LIMIT_DP,
+                SettingsStore.MAX_ASSISTANT_GESTURE_VERTICAL_LIMIT_DP, "dp");
+        activity.addActionButtonRow(page, "上下距离标识",
+                "以屏幕中部的示例起点显示上下边界，实际限制随手指按下位置移动。关闭限制时仍可预览距离。",
+                "显示上下边界", page::showVerticalPreview);
         TextView previewHint = new TextView(activity);
-        previewHint.setText("切换触发侧边或调节距离时自动显示屏幕标线，5 秒后消失；离开页面或收起此项立即隐藏。");
+        previewHint.setText("切换侧边、上下偏移开关或调节距离时自动显示对应标线，5 秒后消失；上下边界相对实际按下位置计算，超限后需重新起手。");
         previewHint.setTextColor(activity.subtextColor());
         previewHint.setTextSize(13);
         previewHint.setPadding(0, activity.dp(8), 0, activity.dp(12));
