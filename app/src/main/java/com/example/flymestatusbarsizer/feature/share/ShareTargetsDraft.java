@@ -12,7 +12,7 @@ public final class ShareTargetsDraft {
     private final List<String> defaults;
     private final List<String> order = new ArrayList<>();
     private final Set<String> hidden = new LinkedHashSet<>();
-    private boolean fixedOrder;
+    private List<String> ruleOrder;
 
     public ShareTargetsDraft(Collection<String> available, ShareTargetRules saved) {
         defaults = new ArrayList<>(new ShareTargetRules(available, Collections.emptyList()).order());
@@ -21,12 +21,12 @@ public final class ShareTargetsDraft {
         all.addAll(saved.hidden());
         order.addAll(all);
         hidden.addAll(saved.hidden());
-        fixedOrder = !saved.order().isEmpty();
+        ruleOrder = saved.order();
     }
 
     public List<String> components() { return Collections.unmodifiableList(order); }
     public boolean isHidden(String component) { return hidden.contains(component); }
-    public boolean hasFixedOrder() { return fixedOrder; }
+    public boolean hasFixedOrder() { return !ruleOrder.isEmpty(); }
 
     public void setHidden(String component, boolean value) {
         String key = ShareTargetRules.normalizeComponent(component);
@@ -40,7 +40,7 @@ public final class ShareTargetsDraft {
             return false;
         }
         order.add(destination, order.remove(source));
-        fixedOrder = true;
+        ruleOrder = new ArrayList<>(order);
         return true;
     }
 
@@ -56,10 +56,11 @@ public final class ShareTargetsDraft {
         for (String component : hidden) {
             if (!order.contains(component)) order.add(component);
         }
-        fixedOrder = false;
+        ruleOrder = Collections.emptyList();
     }
 
     public ShareTargetRules rules() {
-        return new ShareTargetRules(fixedOrder ? order : Collections.emptyList(), hidden);
+        // Newly discovered entries belong in the preview, but are only pinned after an actual move.
+        return new ShareTargetRules(ruleOrder, hidden);
     }
 }

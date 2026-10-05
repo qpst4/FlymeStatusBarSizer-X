@@ -2,21 +2,22 @@ package com.example.flymestatusbarsizer.feature.share;
 
 import static org.junit.Assert.*;
 
+import android.app.AlertDialog;
 import android.app.Dialog;
 import android.content.SharedPreferences;
 import android.os.Looper;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.CheckBox;
+import android.widget.EditText;
 import android.widget.GridView;
 import android.widget.Switch;
-import android.widget.Spinner;
 import android.widget.TextView;
 
 import com.example.flymestatusbarsizer.MainActivity;
 import com.example.flymestatusbarsizer.config.ModuleConfig;
 import com.example.flymestatusbarsizer.config.SettingsStore;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -29,6 +30,7 @@ import org.robolectric.annotation.GraphicsMode;
 import org.robolectric.shadows.ShadowAlertDialog;
 import org.robolectric.shadows.ShadowDialog;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -39,6 +41,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public final class ShareTargetsEditorTest {
     private static final String FRIEND = "com.tencent.mm/com.tencent.mm.ui.tools.ShareImgUI";
     private static final String MOMENTS = "com.tencent.mm/com.tencent.mm.ui.tools.ShareToTimeLineUI";
+    private static final String FILE = "com.example.files/com.example.files.Share";
     private EditorActivity activity;
     private Dialog dialog;
 
@@ -52,58 +55,206 @@ public final class ShareTargetsEditorTest {
         activity.prefs().edit().clear().commit();
     }
 
+    @After public void tearDown() {
+        if (dialog != null) dialog.dismiss();
+    }
+
+    private static ShareTargetCatalog.Target target(String component, String label) {
+        return new ShareTargetCatalog.Target(component, label, "微信", null);
+    }
+
     private void open() {
         new ShareTargetsEditor(activity, Runnable::run, context -> List.of(
-                new ShareTargetCatalog.Target(FRIEND, "微信好友", "微信", null),
-                new ShareTargetCatalog.Target(MOMENTS, "朋友圈", "微信", null))).show();
+                target(FRIEND, "微信好友"), target(MOMENTS, "朋友圈"))).show();
+        captureDialog();
+    }
+
+    private void captureDialog() {
         Shadows.shadowOf(Looper.getMainLooper()).idle();
         dialog = ShadowDialog.getLatestDialog();
     }
 
+    @Test public void unchangedEditorDoesNotSaveAndReturnsWithoutPrompt() {
+        open();
+        assertFalse(byText(root(), "保存").isEnabled());
+        selectType(ShareContentType.IMAGE);
+        selectType(ShareContentType.DEFAULT);
+        moreAction("重新扫描");
+        assertFalse(byText(root(), "保存").isEnabled());
+        byDescription(root(), "返回").performClick();
+        assertFalse(dialog.isShowing());
+        assertTrue(activity.prefs().getAll().isEmpty());
+    }
+
+    @Test public void discoveredTargetsDoNotMarkAnExistingOrderAsEdited() {
+        activity.prefs().edit().putString(SettingsStore.KEY_SHARE_TARGET_ORDER, FRIEND).commit();
+        open();
+        assertEquals(2, grid().getCount());
+        assertFalse(byText(root(), "保存").isEnabled());
+        moreAction("重新扫描");
+        assertFalse(byText(root(), "保存").isEnabled());
+        targetAction(1, "隐藏此入口");
+        byText(root(), "保存").performClick();
+        assertEquals(FRIEND, activity.prefs().getString(SettingsStore.KEY_SHARE_TARGET_ORDER, ""));
+    }
+
+    @Test public void undoRestoresCleanStateRegardlessOfHiddenSetInsertionOrder() {
+        activity.prefs().edit().putString(SettingsStore.KEY_SHARE_HIDDEN_TARGETS, FRIEND + "\n" + MOMENTS).commit();
+        open();
+        filterHidden(true);
+        targetAction(0, "恢复显示");
+        byText(root(), "撤销").performClick();
+        assertEquals(2, grid().getCount());
+        assertFalse(byText(root(), "保存").isEnabled());
+    }
+
+    @Test public void pendingRescanKeepsExitSaveDisabledUntilDraftCanBeSaved() {
+        AtomicReference<Runnable> worker = new AtomicReference<>();
+        new ShareTargetsEditor(activity, worker::set, context -> List.of(
+                target(FRIEND, "微信好友"), target(MOMENTS, "朋友圈"))).show();
+        captureDialog();
+        assertFalse(byText(root(), "保存").isEnabled());
+        worker.get().run();
+        Shadows.shadowOf(Looper.getMainLooper()).idle();
+        targetAction(1, "移到顶部");
+        moreAction("重新扫描");
+        dialog.onBackPressed();
+        assertFalse(ShadowAlertDialog.getLatestAlertDialog().getButton(AlertDialog.BUTTON_POSITIVE).isEnabled());
+        worker.get().run();
+        Shadows.shadowOf(Looper.getMainLooper()).idle();
+        assertTrue(ShadowAlertDialog.getLatestAlertDialog().getButton(AlertDialog.BUTTON_POSITIVE).isEnabled());
+        confirm(AlertDialog.BUTTON_POSITIVE);
+        assertEquals(MOMENTS + "\n" + FRIEND, activity.prefs().getString(SettingsStore.KEY_SHARE_TARGET_ORDER, ""));
+    }
+
+    @Test @Config(qualifiers = "w360dp-h720dp-xhdpi")
+    public void compactLayoutLeavesRoomForTwoGridRowsAndScrollableActions() {
+        open();
+        selectType(ShareContentType.IMAGE);
+        View content = ((ViewGroup) dialog.findViewById(android.R.id.content)).getChildAt(0);
+        layout(content, 360, 640);
+        assertTrue("grid should show two full rows", grid().getHeight() >= itemHeight() * 2);
+        setIndependent(true);
+        itemView(0).performClick();
+        View sheetContent = ((ViewGroup) ShadowDialog.getLatestDialog()
+                .findViewById(android.R.id.content)).getChildAt(0);
+        layout(sheetContent, 360, 460);
+        android.widget.ScrollView scroll = find(sheetContent, android.widget.ScrollView.class);
+        assertNotNull(scroll);
+        assertTrue("actions should scroll on short screens", scroll.getChildAt(0).getHeight() > scroll.getHeight());
+        assertTrue(byText(latestRoot(), "取消").isEnabled());
+    }
+
+    @Test @Config(qualifiers = "w320dp-h640dp-xhdpi")
+    public void largeFontOnNarrowScreenKeepsGridAndSaveAccessible() {
+        android.content.res.Configuration config = new android.content.res.Configuration(
+                activity.getResources().getConfiguration());
+        config.fontScale = 1.3f;
+        activity.getResources().updateConfiguration(config, activity.getResources().getDisplayMetrics());
+        open();
+        selectType(ShareContentType.IMAGE);
+        View content = ((ViewGroup) dialog.findViewById(android.R.id.content)).getChildAt(0);
+        layout(content, 320, 580);
+        assertTrue("at least one complete row must remain visible", grid().getHeight() >= itemHeight());
+        TextView save = (TextView) byText(root(), "保存");
+        assertTrue(save.getWidth() >= activity.dp(48));
+        assertTrue(save.getHeight() >= activity.dp(48));
+    }
+
+    private void layout(View view, int width, int height) {
+        int w = activity.dp(width), h = activity.dp(height);
+        view.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY));
+        view.layout(0, 0, w, h);
+    }
+
+    private int itemHeight() {
+        View item = itemView(0);
+        item.measure(View.MeasureSpec.makeMeasureSpec(activity.dp(76), View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+        return item.getMeasuredHeight();
+    }
+
     @Test public void cancelLeavesAllPreferencesUntouched() {
         open();
-        checkbox(0).setChecked(true);
-        byText(root(), "返回").performClick();
+        targetAction(0, "隐藏此入口");
+        byDescription(root(), "返回").performClick();
+        assertTrue(dialog.isShowing());
+        confirm(AlertDialog.BUTTON_NEGATIVE);
+        assertFalse(dialog.isShowing());
         assertTrue(activity.prefs().getAll().isEmpty());
     }
 
     @Test public void savePersistsHideAndEnabledStateWithoutFreezingOrder() {
         open();
-        checkbox(1).setChecked(true);
+        targetAction(1, "隐藏此入口");
         ((Switch) byText(root(), "启用自定义分享列表")).setChecked(true);
         byText(root(), "保存").performClick();
         assertTrue(activity.prefs().getBoolean(SettingsStore.KEY_SHARE_TARGETS_ENABLED, false));
         assertEquals(MOMENTS, activity.prefs().getString(SettingsStore.KEY_SHARE_HIDDEN_TARGETS, ""));
         assertEquals("", activity.prefs().getString(SettingsStore.KEY_SHARE_TARGET_ORDER, ""));
         open();
-        assertTrue(checkbox(1).isChecked());
-        dialog.dismiss();
+        assertEquals(1, grid().getCount());
+        filterHidden(true);
+        assertEquals(MOMENTS, grid().getAdapter().getItem(0));
+        targetAction(0, "恢复显示");
+        assertEquals(0, grid().getCount());
+        filterHidden(false);
+        assertEquals(2, grid().getCount());
     }
 
-    @Test public void accessibleMoveMenuSavesFixedOrderAndHiddenTargetStaysEditable() {
+    @Test public void hideAndRestoreCanBeUndoneWithoutChangingOrderOrEnableState() {
         open();
-        checkbox(1).setChecked(true);
-        View row = itemView(1);
-        byDescription(row, "调整 朋友圈 的位置，长按拖动").performClick();
-        android.app.AlertDialog menu = ShadowAlertDialog.getLatestAlertDialog();
-        menu.getListView().performItemClick(null, 0, 0);
-        assertTrue(checkbox(0).isChecked());
+        targetAction(1, "隐藏此入口");
+        assertEquals(1, grid().getCount());
+        byText(root(), "撤销").performClick();
+        assertEquals(2, grid().getCount());
+        assertFalse(byText(root(), "保存").isEnabled());
+        targetAction(1, "隐藏此入口");
+        filterHidden(true);
+        targetAction(0, "恢复显示");
+        assertEquals(0, grid().getCount());
+        byText(root(), "撤销").performClick();
+        assertEquals(MOMENTS, grid().getAdapter().getItem(0));
+        assertFalse(((Switch) byText(root(), "启用自定义分享列表")).isChecked());
+        byText(root(), "保存").performClick();
+        assertEquals("", activity.prefs().getString(SettingsStore.KEY_SHARE_TARGET_ORDER, ""));
+    }
+
+    @Test public void undoExpiresAndCannotLeakAcrossProfiles() {
+        open();
+        targetAction(0, "隐藏此入口");
+        Shadows.shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(7));
+        assertEquals(View.GONE, ((View) byText(root(), "撤销").getParent()).getVisibility());
+        selectType(ShareContentType.IMAGE);
+        assertEquals(View.GONE, ((View) byText(root(), "撤销").getParent()).getVisibility());
+        byText(root(), "撤销").performClick();
+        byText(root(), "保存").performClick();
+        assertEquals(FRIEND, activity.prefs().getString(SettingsStore.KEY_SHARE_HIDDEN_TARGETS, ""));
+    }
+
+    @Test public void visibleMoveMenuSkipsHiddenNeighborAndPreservesItsRule() {
+        new ShareTargetsEditor(activity, Runnable::run, context -> List.of(
+                target(FRIEND, "微信好友"), target(MOMENTS, "朋友圈"), target(FILE, "文件"))).show();
+        captureDialog();
+        targetAction(1, "隐藏此入口");
+        targetAction(1, "向上移动");
+        assertEquals(FILE, grid().getAdapter().getItem(0));
         byText(root(), "保存").performClick();
         ShareTargetRules saved = ShareTargetRules.parse(
                 activity.prefs().getString(SettingsStore.KEY_SHARE_TARGET_ORDER, ""),
                 activity.prefs().getString(SettingsStore.KEY_SHARE_HIDDEN_TARGETS, ""));
-        assertEquals(List.of(MOMENTS, FRIEND), saved.order());
+        assertEquals(List.of(FILE, FRIEND), saved.apply(List.of(FRIEND, MOMENTS, FILE), s -> s));
         assertTrue(saved.hidden().contains(MOMENTS));
     }
 
     @Test public void explicitReorderEnablesFeatureAndSavedOrderReachesRuntimeRules() throws Exception {
         open();
         assertFalse(((Switch) byText(root(), "启用自定义分享列表")).isChecked());
-        byDescription(itemView(1), "调整 朋友圈 的顺序").performClick();
-        ShadowAlertDialog.getLatestAlertDialog().getListView().performItemClick(null, 0, 0);
+        targetAction(1, "移到顶部");
         assertTrue(((Switch) byText(root(), "启用自定义分享列表")).isChecked());
-        assertEquals(MOMENTS, find(root(), GridView.class).getAdapter().getItem(0));
-        assertTrue(activity.prefs().getAll().isEmpty()); // Still only a draft.
+        assertEquals(MOMENTS, grid().getAdapter().getItem(0));
+        assertTrue(activity.prefs().getAll().isEmpty());
         byText(root(), "保存").performClick();
 
         java.lang.reflect.Method decode = ModuleConfig.class.getDeclaredMethod("fromSharedPreferences", SharedPreferences.class);
@@ -115,26 +266,40 @@ public final class ShareTargetsEditorTest {
         assertEquals(List.of(MOMENTS, FRIEND),
                 ShareTargetsHooks.rulesFor(config, activity).apply(List.of(FRIEND, MOMENTS), s -> s));
         open();
-        assertEquals(MOMENTS, find(root(), GridView.class).getAdapter().getItem(0));
-        dialog.dismiss();
+        assertEquals(MOMENTS, grid().getAdapter().getItem(0));
     }
 
     @Test public void returningWithoutSavingDiscardsOrderAndAutomaticEnable() {
         open();
-        byDescription(itemView(1), "调整 朋友圈 的顺序").performClick();
-        ShadowAlertDialog.getLatestAlertDialog().getListView().performItemClick(null, 0, 0);
-        byText(root(), "返回").performClick();
+        targetAction(1, "移到顶部");
+        dialog.onBackPressed();
+        confirm(AlertDialog.BUTTON_NEGATIVE);
         assertTrue(activity.prefs().getAll().isEmpty());
+    }
+
+    @Test public void backPromptCanContinueEditingOrSaveAllProfiles() {
+        open();
+        targetAction(1, "隐藏此入口");
+        selectType(ShareContentType.IMAGE);
+        dialog.onBackPressed();
+        confirm(AlertDialog.BUTTON_NEUTRAL);
+        assertTrue(dialog.isShowing());
+        assertTrue(activity.prefs().getAll().isEmpty());
+        dialog.onBackPressed();
+        confirm(AlertDialog.BUTTON_POSITIVE);
+        assertFalse(dialog.isShowing());
+        assertEquals(MOMENTS, activity.prefs().getString(SettingsStore.KEY_SHARE_HIDDEN_TARGETS, ""));
     }
 
     @Test public void followSystemOrderRetainsHiddenSettingsAndWaitsForSave() {
         activity.prefs().edit().putString(SettingsStore.KEY_SHARE_TARGET_ORDER, MOMENTS + "\n" + FRIEND)
                 .putString(SettingsStore.KEY_SHARE_HIDDEN_TARGETS, MOMENTS).commit();
         open();
-        byText(root(), "跟随系统").performClick();
-        assertEquals(FRIEND, find(root(), GridView.class).getAdapter().getItem(0));
-        assertTrue(checkbox(1).isChecked());
-        assertFalse(byText(root(), "跟随系统").isEnabled());
+        moreAction("恢复系统排序");
+        assertEquals(FRIEND, grid().getAdapter().getItem(0));
+        filterHidden(true);
+        assertEquals(MOMENTS, grid().getAdapter().getItem(0));
+        assertFalse(moreOptionEnabled("恢复系统排序"));
         assertEquals(MOMENTS + "\n" + FRIEND, activity.prefs().getString(SettingsStore.KEY_SHARE_TARGET_ORDER, ""));
         byText(root(), "保存").performClick();
         assertEquals("", activity.prefs().getString(SettingsStore.KEY_SHARE_TARGET_ORDER, ""));
@@ -142,37 +307,33 @@ public final class ShareTargetsEditorTest {
     }
 
     @Test public void rescanFollowsNewSystemOrderUntilUserMovesAnEntry() {
-        ShareTargetCatalog.Target friend = new ShareTargetCatalog.Target(FRIEND, "微信好友", "微信", null);
-        ShareTargetCatalog.Target moments = new ShareTargetCatalog.Target(MOMENTS, "朋友圈", "微信", null);
+        ShareTargetCatalog.Target friend = target(FRIEND, "微信好友");
+        ShareTargetCatalog.Target moments = target(MOMENTS, "朋友圈");
         AtomicReference<List<ShareTargetCatalog.Target>> system = new AtomicReference<>(List.of(moments, friend));
         new ShareTargetsEditor(activity, Runnable::run, context -> system.get()).show();
-        Shadows.shadowOf(Looper.getMainLooper()).idle();
-        dialog = ShadowDialog.getLatestDialog();
-        assertEquals(MOMENTS, find(root(), GridView.class).getAdapter().getItem(0));
+        captureDialog();
+        assertEquals(MOMENTS, grid().getAdapter().getItem(0));
         system.set(List.of(friend, moments));
-        byText(root(), "重新扫描").performClick();
-        assertEquals(FRIEND, find(root(), GridView.class).getAdapter().getItem(0));
-        assertFalse(byText(root(), "跟随系统").isEnabled());
-        byDescription(itemView(1), "调整 朋友圈 的顺序").performClick();
-        ShadowAlertDialog.getLatestAlertDialog().getListView().performItemClick(null, 0, 0);
-        byText(root(), "重新扫描").performClick();
-        assertEquals(MOMENTS, find(root(), GridView.class).getAdapter().getItem(0));
-        assertTrue(byText(root(), "跟随系统").isEnabled());
-        dialog.dismiss();
+        moreAction("重新扫描");
+        assertEquals(FRIEND, grid().getAdapter().getItem(0));
+        assertFalse(moreOptionEnabled("恢复系统排序"));
+        targetAction(1, "移到顶部");
+        moreAction("重新扫描");
+        assertEquals(MOMENTS, grid().getAdapter().getItem(0));
+        assertTrue(moreOptionEnabled("恢复系统排序"));
     }
 
     @Test public void typeCanFollowSystemOrderIndependentlyOfDefaultCustomOrder() {
         activity.prefs().edit().putString(SettingsStore.KEY_SHARE_TARGET_ORDER, MOMENTS + "\n" + FRIEND).commit();
         open();
         selectType(ShareContentType.IMAGE);
-        assertFalse(byText(root(), "跟随系统").isEnabled());
-        ((Switch) byText(root(), "单独设置此类型")).setChecked(true);
-        byText(root(), "跟随系统").performClick();
+        assertFalse(moreOptionEnabled("恢复系统排序"));
+        setIndependent(true);
+        moreAction("恢复系统排序");
         byText(root(), "保存").performClick();
         ShareTargetRules defaults = ShareTargetRules.parse(
                 activity.prefs().getString(SettingsStore.KEY_SHARE_TARGET_ORDER, ""), "");
-        ShareTargetProfiles profiles = ShareTargetProfiles.parse(activity.prefs().getString(
-                SettingsStore.KEY_SHARE_TARGET_PROFILES, ""));
+        ShareTargetProfiles profiles = savedProfiles();
         assertEquals(List.of(MOMENTS, FRIEND), defaults.order());
         assertTrue(profiles.hasOverride(ShareContentType.IMAGE));
         assertTrue(profiles.rulesFor(ShareContentType.IMAGE, defaults).order().isEmpty());
@@ -183,12 +344,12 @@ public final class ShareTargetsEditorTest {
         activity.prefs().edit().putString(SettingsStore.KEY_SHARE_HIDDEN_TARGETS, MOMENTS)
                 .putString(SettingsStore.KEY_SHARE_TARGET_ORDER, MOMENTS + "\n" + FRIEND).commit();
         open();
-        byText(root(), "恢复默认").performClick();
-        assertFalse(checkbox(0).isChecked());
+        resetCurrent();
+        assertEquals(2, grid().getCount());
         dialog.dismiss();
         assertEquals(MOMENTS, activity.prefs().getString(SettingsStore.KEY_SHARE_HIDDEN_TARGETS, ""));
         open();
-        byText(root(), "恢复默认").performClick();
+        resetCurrent();
         byText(root(), "保存").performClick();
         assertEquals("", activity.prefs().getString(SettingsStore.KEY_SHARE_HIDDEN_TARGETS, ""));
         assertEquals("", activity.prefs().getString(SettingsStore.KEY_SHARE_TARGET_ORDER, ""));
@@ -198,79 +359,177 @@ public final class ShareTargetsEditorTest {
     @Test public void failedScanCannotOverwriteSavedRules() {
         activity.prefs().edit().putString(SettingsStore.KEY_SHARE_HIDDEN_TARGETS, MOMENTS).commit();
         new ShareTargetsEditor(activity, Runnable::run, context -> { throw new IllegalStateException("scan failed"); }).show();
-        Shadows.shadowOf(Looper.getMainLooper()).idle();
-        dialog = ShadowDialog.getLatestDialog();
+        captureDialog();
         assertFalse(byText(root(), "保存").isEnabled());
-        dialog.dismiss();
+        assertFalse(moreOptionEnabled("重置当前类型"));
         assertEquals(MOMENTS, activity.prefs().getString(SettingsStore.KEY_SHARE_HIDDEN_TARGETS, ""));
     }
 
     @Test public void typeDraftsSaveTogetherAndResetOnlyAffectsSelectedType() {
         open();
-        checkbox(1).setChecked(true); // Default hides Moments.
+        targetAction(1, "隐藏此入口");
         selectType(ShareContentType.IMAGE);
-        assertTrue(checkbox(1).isChecked());
-        assertFalse(checkbox(1).isEnabled());
-        ((Switch) byText(root(), "单独设置此类型")).setChecked(true);
-        checkbox(1).setChecked(false); // Explicitly empty overrides must survive saving.
+        filterHidden(true);
+        assertEquals(MOMENTS, grid().getAdapter().getItem(0));
+        itemView(0).performClick();
+        assertNull(byText(latestRoot(), "恢复显示"));
+        byText(latestRoot(), "单独设置此类型").performClick();
+        targetAction(0, "恢复显示");
         selectType(ShareContentType.PDF);
-        ((Switch) byText(root(), "单独设置此类型")).setChecked(true);
-        checkbox(0).setChecked(true);
+        setIndependent(true);
+        filterHidden(false);
+        targetAction(0, "隐藏此入口");
         selectType(ShareContentType.IMAGE);
-        assertFalse(checkbox(1).isChecked());
-        byText(root(), "重新扫描").performClick();
-        assertFalse(checkbox(1).isChecked());
+        assertEquals(2, grid().getCount());
+        moreAction("重新扫描");
+        assertEquals(2, grid().getCount());
         byText(root(), "保存").performClick();
-        ShareTargetProfiles profiles = ShareTargetProfiles.parse(activity.prefs().getString(
-                SettingsStore.KEY_SHARE_TARGET_PROFILES, ""));
+        ShareTargetProfiles profiles = savedProfiles();
         assertTrue(profiles.hasOverride(ShareContentType.IMAGE));
         assertTrue(profiles.rulesFor(ShareContentType.IMAGE, ShareTargetRules.EMPTY).isEmpty());
         assertEquals(2, profiles.rulesFor(ShareContentType.PDF, ShareTargetRules.EMPTY).hidden().size());
         assertEquals(MOMENTS, activity.prefs().getString(SettingsStore.KEY_SHARE_HIDDEN_TARGETS, ""));
         open();
         selectType(ShareContentType.PDF);
-        byText(root(), "恢复默认").performClick();
+        resetCurrent();
         assertFalse(((Switch) byText(root(), "单独设置此类型")).isChecked());
         byText(root(), "保存").performClick();
-        profiles = ShareTargetProfiles.parse(activity.prefs().getString(SettingsStore.KEY_SHARE_TARGET_PROFILES, ""));
+        profiles = savedProfiles();
         assertFalse(profiles.hasOverride(ShareContentType.PDF));
         assertTrue(profiles.hasOverride(ShareContentType.IMAGE));
+    }
+
+    @Test public void everyTypeKeepsItsOwnSavedHiddenAndOrderedRulesAtRuntime() throws Exception {
+        open();
+        for (ShareContentType type : ShareContentType.values()) {
+            if (type == ShareContentType.DEFAULT) continue;
+            selectType(type);
+            setIndependent(true);
+            targetAction(1, "移到顶部");
+            targetAction(type.ordinal() % 2, "隐藏此入口");
+        }
+        selectType(ShareContentType.DEFAULT);
+        assertEquals(2, grid().getCount());
+        assertEquals(FRIEND, grid().getAdapter().getItem(0));
+        byText(root(), "保存").performClick();
+
+        java.lang.reflect.Method decode = ModuleConfig.class.getDeclaredMethod("fromSharedPreferences", SharedPreferences.class);
+        decode.setAccessible(true);
+        ModuleConfig config = (ModuleConfig) decode.invoke(null, activity.prefs());
+        assertTrue(config.shareTargetsEnabled);
+        assertTrue(config.shareTargetRules.isEmpty());
+        for (ShareContentType type : ShareContentType.values()) {
+            if (type == ShareContentType.DEFAULT) continue;
+            activity.setIntent(android.content.Intent.createChooser(
+                    new android.content.Intent(android.content.Intent.ACTION_SEND).setType(type.mime), "Share"));
+            ShareTargetRules rules = ShareTargetsHooks.rulesFor(config, activity);
+            assertEquals(type.name(), List.of(MOMENTS, FRIEND), rules.order());
+            String hidden = type.ordinal() % 2 == 0 ? MOMENTS : FRIEND;
+            assertEquals(type.name(), java.util.Set.of(hidden), rules.hidden());
+        }
+
+        open();
+        filterHidden(true);
+        for (ShareContentType type : ShareContentType.values()) {
+            if (type == ShareContentType.DEFAULT) continue;
+            selectType(type);
+            assertEquals(type.name(), 1, grid().getCount());
+            assertEquals(type.ordinal() % 2 == 0 ? MOMENTS : FRIEND, grid().getAdapter().getItem(0));
+            assertFalse(byText(root(), "保存").isEnabled());
+        }
     }
 
     @Test public void cancelDiscardsEditsAcrossTypes() {
         open();
         selectType(ShareContentType.IMAGE);
-        ((Switch) byText(root(), "单独设置此类型")).setChecked(true);
-        checkbox(0).setChecked(true);
+        setIndependent(true);
+        targetAction(0, "隐藏此入口");
         selectType(ShareContentType.PDF);
-        byText(root(), "返回").performClick();
+        byDescription(root(), "返回").performClick();
+        confirm(AlertDialog.BUTTON_NEGATIVE);
         assertTrue(activity.prefs().getAll().isEmpty());
     }
 
     @Test public void selectedTypeUsesItsOwnCatalog() {
         new ShareTargetsEditor(activity, Runnable::run, (context, type) -> type == ShareContentType.PDF
-                ? List.of(new ShareTargetCatalog.Target(FRIEND, "微信好友", "微信", null))
-                : List.of(new ShareTargetCatalog.Target(MOMENTS, "朋友圈", "微信", null))).show();
-        Shadows.shadowOf(Looper.getMainLooper()).idle();
-        dialog = ShadowDialog.getLatestDialog();
+                ? List.of(target(FRIEND, "微信好友")) : List.of(target(MOMENTS, "朋友圈"))).show();
+        captureDialog();
         selectType(ShareContentType.PDF);
         assertNotNull(byText(itemView(0), "微信好友"));
         selectType(ShareContentType.IMAGE);
         assertNotNull(byText(itemView(0), "朋友圈"));
-        dialog.dismiss();
+    }
+
+    @Test public void searchAllowsHideButPreventsReorderAndHasClearableEmptyState() {
+        open();
+        find(root(), EditText.class).setText("朋友圈");
+        assertEquals(1, grid().getCount());
+        assertFalse(itemView(0).isLongClickable());
+        itemView(0).performClick();
+        assertFalse(byText(latestRoot(), "移到顶部").isEnabled());
+        byText(latestRoot(), "隐藏此入口").performClick();
+        assertEquals(0, grid().getCount());
+        assertEquals(View.VISIBLE, byText(root(), "没有找到匹配的入口\n试试应用名称，或清空搜索").getVisibility());
+        byDescription(root(), "清空搜索").performClick();
+        assertEquals(1, grid().getCount());
+        filterHidden(true);
+        assertEquals(MOMENTS, grid().getAdapter().getItem(0));
+    }
+
+    private ShareTargetProfiles savedProfiles() {
+        return ShareTargetProfiles.parse(activity.prefs().getString(SettingsStore.KEY_SHARE_TARGET_PROFILES, ""));
     }
 
     private void selectType(ShareContentType type) {
-        find(root(), Spinner.class).setSelection(type.ordinal());
+        byDescription(root(), "分享类型：" + type.label).performClick();
         Shadows.shadowOf(Looper.getMainLooper()).idle();
     }
 
-    private View root() { return dialog.getWindow().getDecorView(); }
-    private View itemView(int position) {
-        GridView list = find(root(), GridView.class);
-        return list.getAdapter().getView(position, null, list);
+    private void setIndependent(boolean value) {
+        ((Switch) byText(root(), "单独设置此类型")).setChecked(value);
     }
-    private CheckBox checkbox(int position) { return find(itemView(position), CheckBox.class); }
+
+    private void filterHidden(boolean hidden) {
+        byDescription(root(), hidden ? "查看已隐藏的入口" : "查看显示中的入口").performClick();
+    }
+
+    private void targetAction(int position, String label) {
+        itemView(position).performClick();
+        View action = byText(latestRoot(), label);
+        assertNotNull(label, action);
+        assertTrue(label, action.isEnabled());
+        action.performClick();
+    }
+
+    private void moreAction(String label) {
+        byDescription(root(), "更多操作").performClick();
+        View action = byText(latestRoot(), label);
+        assertTrue(label, action.isEnabled());
+        action.performClick();
+        Shadows.shadowOf(Looper.getMainLooper()).idle();
+    }
+
+    private boolean moreOptionEnabled(String label) {
+        byDescription(root(), "更多操作").performClick();
+        boolean enabled = byText(latestRoot(), label).isEnabled();
+        ShadowDialog.getLatestDialog().dismiss();
+        return enabled;
+    }
+
+    private void confirm(int button) {
+        ShadowAlertDialog.getLatestAlertDialog().getButton(button).performClick();
+        Shadows.shadowOf(Looper.getMainLooper()).idle();
+    }
+
+    private void resetCurrent() {
+        moreAction("重置当前类型");
+        confirm(AlertDialog.BUTTON_POSITIVE);
+    }
+
+    private View root() { return dialog.getWindow().getDecorView(); }
+    private View latestRoot() { return ShadowDialog.getLatestDialog().getWindow().getDecorView(); }
+    private GridView grid() { return find(root(), GridView.class); }
+    private View itemView(int position) { return grid().getAdapter().getView(position, null, grid()); }
 
     private static View byText(View root, String text) {
         if (root instanceof TextView && text.contentEquals(((TextView) root).getText())) return root;

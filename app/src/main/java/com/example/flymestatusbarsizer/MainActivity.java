@@ -7,6 +7,7 @@ import com.example.flymestatusbarsizer.feature.clock.ClockExpressionEditor;
 import com.example.flymestatusbarsizer.feature.ime.ImeToolbarEditor;
 import com.example.flymestatusbarsizer.feature.launcher.organizer.LauncherOrganizerPage;
 import com.example.flymestatusbarsizer.feature.onemind.OneMindHookPointDetector;
+import com.example.flymestatusbarsizer.feature.share.ShareTargetsHooks;
 import com.example.flymestatusbarsizer.ui.AboutPageController;
 import com.example.flymestatusbarsizer.ui.AdvancedDebugPageController;
 import com.example.flymestatusbarsizer.ui.HomePageController;
@@ -2223,6 +2224,11 @@ public class MainActivity extends Activity {
 
     public void restartLauncher() {
         restartPackageProcess(PACKAGE_FLYME_LAUNCHER, "系统桌面");
+    }
+
+    public void restartShareResolver() {
+        // The system starts IntentResolver again when the next share sheet is opened.
+        restartPackageProcess(ShareTargetsHooks.PACKAGE, "系统分享");
     }
 
     public void restartAssistant() {

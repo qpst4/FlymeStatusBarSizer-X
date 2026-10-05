@@ -1,6 +1,7 @@
 android
 com.android.systemui
 com.android.intentresolver
+com.meizu.media.gallery
 com.meizu.pps
 com.meizu.safe
 com.meizu.flyme.launcher

@@ -64,6 +64,11 @@ public final class HomePageController {
                 "修改状态栏、通知背景等设置后，重启系统界面。",
                 "重启", activity::restartSystemUi);
         activity.addDivider(content);
+        activity.addActionButtonRow(content, "系统分享",
+                "更新分享列表功能后，重启系统分享进程（com.android.intentresolver）。"
+                        + "下次打开分享面板时会自动启动并加载新版模块，需要 Root 权限。",
+                "重启", activity::restartShareResolver);
+        activity.addDivider(content);
         activity.addActionButtonRow(content, "系统桌面",
                 "修改文件夹、后台布局或堆叠参数后，重启系统桌面。",
                 "重启", activity::restartLauncher);

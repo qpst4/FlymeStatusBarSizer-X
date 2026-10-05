@@ -52,6 +52,16 @@ public final class ShareTargetRulesTest {
         assertEquals(List.of(QQ, FRIEND), draft.rules().apply(List.of(QQ, FRIEND, MOMENTS), s -> s));
     }
 
+    @Test public void refreshingAnExistingOrderDoesNotPinNewEntriesUntilTheyAreMoved() {
+        ShareTargetsDraft draft = new ShareTargetsDraft(List.of(FRIEND, QQ, NEW),
+                new ShareTargetRules(List.of(QQ), List.of()));
+        assertEquals(List.of(QQ, FRIEND, NEW), draft.components());
+        draft.setHidden(FRIEND, true);
+        assertEquals(List.of(QQ), draft.rules().order());
+        assertTrue(draft.move(NEW, 0));
+        assertEquals(List.of(NEW, QQ, FRIEND), draft.rules().order());
+    }
+
     @Test public void dragSaveAndReloadPreserveHiddenAndTemporarilyMissingTargets() {
         ShareTargetsDraft draft = new ShareTargetsDraft(List.of(FRIEND, MOMENTS, QQ), ShareTargetRules.EMPTY);
         draft.setHidden(MOMENTS, true);

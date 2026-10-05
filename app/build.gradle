@@ -63,6 +63,10 @@ signingConfigs {
         abortOnError false
     }
 
+    testOptions {
+        unitTests.includeAndroidResources = true
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17

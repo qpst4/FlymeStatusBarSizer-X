@@ -1,6 +1,7 @@
 package com.example.flymestatusbarsizer;
 
 import com.example.flymestatusbarsizer.feature.share.ShareTargetsHooks;
+import com.example.flymestatusbarsizer.feature.share.GalleryShareTargetsHooks;
 
 import com.example.flymestatusbarsizer.config.ModuleConfig;
 import com.example.flymestatusbarsizer.config.SettingsStore;
@@ -240,6 +241,9 @@ public class FlymeStatusBarSizer extends XposedModule {
         ClassLoader loader = param.getDefaultClassLoader();
         if (ShareTargetsHooks.PACKAGE.equals(packageName)) {
             ShareTargetsHooks.install(this, loader);
+        }
+        if (GalleryShareTargetsHooks.PACKAGE.equals(packageName)) {
+            GalleryShareTargetsHooks.install(this, loader);
         }
         if (SYSTEM_UI.equals(packageName)) {
             hookSystemUi(loader);
