@@ -2,6 +2,7 @@ package com.example.flymestatusbarsizer.ui;
 
 import com.example.flymestatusbarsizer.MainActivity;
 import com.example.flymestatusbarsizer.config.SettingsStore;
+import com.example.flymestatusbarsizer.feature.share.ShareTargetsEditor;
 import com.example.flymestatusbarsizer.feature.assistant.AssistantGesturePreviewLayout;
 import com.example.flymestatusbarsizer.feature.battery.BatteryTextFontHelper;
 import com.example.flymestatusbarsizer.feature.battery.CircleBatteryAnimationEditor;
@@ -391,6 +392,18 @@ public final class SettingsCardFactory {
         activity.addProfileSectionHeader(page, "首次启用",
                 "在 LSPosed 中勾选系统界面和 Aicy 纵览（com.meizu.assistant），重启手机，并先从桌面打开一次负一屏。遵循系统返回手势区域，锁屏时不触发。未达到阈值时正常返回。");
         return activity.buildSectionCard("全局负一屏", "左侧长滑返回，在当前应用上打开 Aicy 纵览。", page);
+    }
+
+    public View createShareTargetsSettingsCard() {
+        LinearLayout content = new LinearLayout(activity);
+        content.setOrientation(LinearLayout.VERTICAL);
+        activity.addActionButtonRow(content, "分享列表管理",
+                "按图片、视频、文本、PDF、音频分别隐藏和排序，微信好友、朋友圈等可独立管理。"
+                        + "首次使用需在 LSPosed 的模块作用域中勾选 com.android.intentresolver，"
+                        + "并重启该应用进程或手机。",
+                "管理", () -> new ShareTargetsEditor(activity).show());
+        return activity.buildSectionCard("分享列表",
+                "默认跟随系统顺序，支持隐藏和手动排序，保存后应用到分享面板。", content);
     }
 
     public View createCarLinkSettingsCard() {

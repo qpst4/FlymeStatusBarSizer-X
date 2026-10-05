@@ -146,6 +146,10 @@ public final class SettingsStore {
     public static final String KEY_WINDOWMODE_RECENT_INNER_RING_RADIUS_PERCENT =
             "windowmode_recent_inner_ring_radius_percent";
     public static final String KEY_CARLINK_EXPAND_APPS_ENABLED = "carlink_expand_apps_enabled";
+    public static final String KEY_SHARE_TARGETS_ENABLED = "share_targets_enabled";
+    public static final String KEY_SHARE_TARGET_PROFILES = "share_target_profiles";
+    public static final String KEY_SHARE_TARGET_ORDER = "share_target_order";
+    public static final String KEY_SHARE_HIDDEN_TARGETS = "share_hidden_targets";
     public static final String KEY_CARLINK_NETEASE_COLD_START_FIX_ENABLED =
             "carlink_netease_cold_start_fix_enabled";
     public static final String KEY_CARLINK_DAY_NIGHT_ISOLATION_ENABLED =
@@ -421,6 +425,7 @@ public final class SettingsStore {
     public static final int DEFAULT_WINDOWMODE_RECENT_INNER_RING_ICON_SCALE_PERCENT = 100;
     public static final int DEFAULT_WINDOWMODE_RECENT_INNER_RING_RADIUS_PERCENT = 38;
     public static final boolean DEFAULT_CARLINK_EXPAND_APPS_ENABLED = false;
+    public static final boolean DEFAULT_SHARE_TARGETS_ENABLED = false;
     public static final boolean DEFAULT_CARLINK_NETEASE_COLD_START_FIX_ENABLED = false;
     public static final boolean DEFAULT_CARLINK_DAY_NIGHT_ISOLATION_ENABLED = false;
     public static final boolean DEFAULT_CARLINK_PERIODIC_REDRAW_DISABLED = false;
@@ -661,6 +666,7 @@ public final class SettingsStore {
     };
 
     public static final String[] BOOLEAN_KEYS = {
+            KEY_SHARE_TARGETS_ENABLED,
             KEY_ASSISTANT_GESTURE_ENABLED,
             CircleBatteryAnimationConfig.ENABLED,
             CircleBatteryAnimationConfig.CHARGING_ONLY,
@@ -724,6 +730,9 @@ public final class SettingsStore {
     };
 
     public static final String[] STRING_KEYS = {
+            KEY_SHARE_TARGET_PROFILES,
+            KEY_SHARE_TARGET_ORDER,
+            KEY_SHARE_HIDDEN_TARGETS,
             KEY_COLOR_PICKER_PALETTE,
             KEY_SIGNAL_MOBILE_TYPE_BADGE_5G_TEXT,
             KEY_SIGNAL_MOBILE_TYPE_BADGE_5GA_TEXT,
@@ -1199,6 +1208,8 @@ public final class SettingsStore {
                 return DEFAULT_WINDOWMODE_RECENT_INNER_RING_ENABLED;
             case KEY_CARLINK_EXPAND_APPS_ENABLED:
                 return DEFAULT_CARLINK_EXPAND_APPS_ENABLED;
+            case KEY_SHARE_TARGETS_ENABLED:
+                return DEFAULT_SHARE_TARGETS_ENABLED;
             case KEY_CARLINK_NETEASE_COLD_START_FIX_ENABLED:
                 return DEFAULT_CARLINK_NETEASE_COLD_START_FIX_ENABLED;
             case KEY_CARLINK_DAY_NIGHT_ISOLATION_ENABLED:

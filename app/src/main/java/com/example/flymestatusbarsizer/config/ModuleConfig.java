@@ -1,5 +1,8 @@
 package com.example.flymestatusbarsizer.config;
 
+import com.example.flymestatusbarsizer.feature.share.ShareTargetRules;
+import com.example.flymestatusbarsizer.feature.share.ShareTargetProfiles;
+
 import com.example.flymestatusbarsizer.feature.battery.CircleBatteryAnimationConfig;
 import com.example.flymestatusbarsizer.feature.wifi.WifiIconStyles;
 
@@ -27,6 +30,9 @@ public final class ModuleConfig {
     private static final Runnable CONFIG_CHANGE_DISPATCH_RUNNABLE = ModuleConfig::notifyConfigChanged;
 
     public boolean enabled = SettingsStore.DEFAULT_ENABLED;
+    public boolean shareTargetsEnabled = SettingsStore.DEFAULT_SHARE_TARGETS_ENABLED;
+    public ShareTargetProfiles shareTargetProfiles = new ShareTargetProfiles();
+    public ShareTargetRules shareTargetRules = ShareTargetRules.EMPTY;
     public boolean statusBarTintEnabled = SettingsStore.DEFAULT_STATUS_BAR_TINT_ENABLED;
     public final int[] statusBarTintModes = new int[SettingsStore.STATUS_BAR_TINT_KEYS.length];
     public boolean batteryCodeDrawEnabled = SettingsStore.DEFAULT_BATTERY_CODE_DRAW_ENABLED;
@@ -393,6 +399,13 @@ public final class ModuleConfig {
         }
         try {
             ModuleConfig config = new ModuleConfig();
+            config.shareTargetsEnabled = SettingsStore.readBoolean(prefs,
+                    SettingsStore.KEY_SHARE_TARGETS_ENABLED, SettingsStore.DEFAULT_SHARE_TARGETS_ENABLED);
+            config.shareTargetProfiles = ShareTargetProfiles.parse(
+                    SettingsStore.readString(prefs, SettingsStore.KEY_SHARE_TARGET_PROFILES, ""));
+            config.shareTargetRules = ShareTargetRules.parse(
+                    SettingsStore.readString(prefs, SettingsStore.KEY_SHARE_TARGET_ORDER, ""),
+                    SettingsStore.readString(prefs, SettingsStore.KEY_SHARE_HIDDEN_TARGETS, ""));
             config.enabled = SettingsStore.readBoolean(prefs, SettingsStore.KEY_ENABLED, SettingsStore.DEFAULT_ENABLED);
             config.statusBarTintEnabled = SettingsStore.readBoolean(prefs,
                     SettingsStore.KEY_STATUS_BAR_TINT_ENABLED, SettingsStore.DEFAULT_STATUS_BAR_TINT_ENABLED);

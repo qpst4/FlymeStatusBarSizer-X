@@ -2484,6 +2484,10 @@ public class MainActivity extends Activity {
         return settingsCardFactory.createAssistantGestureSettingsCard();
     }
 
+    public View createShareTargetsSettingsCard() {
+        return settingsCardFactory.createShareTargetsSettingsCard();
+    }
+
     public View createCarLinkSettingsCard() {
         return settingsCardFactory.createCarLinkSettingsCard();
     }

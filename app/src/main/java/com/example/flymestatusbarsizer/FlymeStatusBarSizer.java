@@ -1,5 +1,7 @@
 package com.example.flymestatusbarsizer;
 
+import com.example.flymestatusbarsizer.feature.share.ShareTargetsHooks;
+
 import com.example.flymestatusbarsizer.config.ModuleConfig;
 import com.example.flymestatusbarsizer.config.SettingsStore;
 import com.example.flymestatusbarsizer.feature.battery.BatteryTextFontHelper;
@@ -236,6 +238,9 @@ public class FlymeStatusBarSizer extends XposedModule {
         ModuleConfig.setConfigChangedCallback(FlymeStatusBarSizer::scheduleConfigChangedRefresh);
         ModuleConfig.attachToModule(this);
         ClassLoader loader = param.getDefaultClassLoader();
+        if (ShareTargetsHooks.PACKAGE.equals(packageName)) {
+            ShareTargetsHooks.install(this, loader);
+        }
         if (SYSTEM_UI.equals(packageName)) {
             hookSystemUi(loader);
         }
