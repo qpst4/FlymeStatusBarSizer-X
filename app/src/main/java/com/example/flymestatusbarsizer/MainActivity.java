@@ -1,13 +1,13 @@
 package com.example.flymestatusbarsizer;
 
 import com.example.flymestatusbarsizer.config.SettingsStore;
+import com.example.flymestatusbarsizer.config.RemoteSettingsSync;
 import com.example.flymestatusbarsizer.feature.battery.CircleBatteryAnimationConfig;
 import com.example.flymestatusbarsizer.feature.clock.ClockDetailActionGridEditor;
 import com.example.flymestatusbarsizer.feature.clock.ClockExpressionEditor;
 import com.example.flymestatusbarsizer.feature.ime.ImeToolbarEditor;
 import com.example.flymestatusbarsizer.feature.launcher.organizer.LauncherOrganizerPage;
 import com.example.flymestatusbarsizer.feature.onemind.OneMindHookPointDetector;
-import com.example.flymestatusbarsizer.feature.share.ShareTargetsHooks;
 import com.example.flymestatusbarsizer.ui.AboutPageController;
 import com.example.flymestatusbarsizer.ui.AdvancedDebugPageController;
 import com.example.flymestatusbarsizer.ui.HomePageController;
@@ -15,6 +15,7 @@ import com.example.flymestatusbarsizer.ui.IconsBatteryPageController;
 import com.example.flymestatusbarsizer.ui.LauncherStackParamsPageController;
 import com.example.flymestatusbarsizer.ui.PageViewUtils;
 import com.example.flymestatusbarsizer.ui.PositionTuningPageController;
+import com.example.flymestatusbarsizer.ui.RestartTarget;
 import com.example.flymestatusbarsizer.ui.SettingsCardFactory;
 import com.example.flymestatusbarsizer.ui.SettingsUiFactory;
 import com.example.flymestatusbarsizer.ui.SystemAppearancePageController;
@@ -29,6 +30,7 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.Rect;
@@ -82,7 +84,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 public class MainActivity extends Activity {
@@ -93,11 +97,6 @@ public class MainActivity extends Activity {
     private static final int MENU_ABOUT = 1;
     public static final String IME_CONTROL_BAR_DRAG_LABEL = "ime_control_bar_button";
     public static final int IME_CONTROL_BAR_POOL_ROW_ITEM_COUNT = 3;
-    private static final String PACKAGE_SYSTEM_UI = "com.android.systemui";
-    private static final String PACKAGE_FLYME_LAUNCHER = "com.meizu.flyme.launcher";
-    private static final String PACKAGE_MEIZU_ASSISTANT = "com.meizu.assistant";
-    private static final String PACKAGE_FLYME_SYSTEMUI_TOOLS = "com.flyme.systemuitools";
-    private static final String PACKAGE_MEIZU_PPS = "com.meizu.pps";
     private static final String PACKAGE_CARLINK = "com.upuphone.carlink";
     private static final String CARLINK_APP_MANAGER =
             "com.upuphone.carlink.settings.activity.AppManaActivity";
@@ -160,6 +159,12 @@ public class MainActivity extends Activity {
     private Drawable searchPreviousForeground;
     private final Runnable searchHighlightReset = this::clearSearchHighlight;
     private Runnable refreshSearchResults;
+    private LinearLayout restartCardContent;
+    private final Handler scopeHandler = new Handler(Looper.getMainLooper());
+    private final Runnable scopeServiceListener = () -> scopeHandler.post(this::refreshRestartScope);
+    private boolean scopeRefreshActive;
+    private int scopeRefreshGeneration;
+    private boolean batchRestartRunning;
     private final ClockExpressionEditor clockExpressionEditor = new ClockExpressionEditor(this);
     private final ClockDetailActionGridEditor clockDetailActionGridEditor =
             new ClockDetailActionGridEditor(this);
@@ -216,6 +221,22 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        scopeRefreshActive = true;
+        RemoteSettingsSync.addServiceListener(scopeServiceListener);
+        refreshRestartScope();
+    }
+
+    @Override
+    protected void onPause() {
+        scopeRefreshActive = false;
+        scopeRefreshGeneration++;
+        RemoteSettingsSync.removeServiceListener(scopeServiceListener);
+        super.onPause();
+    }
+
+    @Override
     public void onBackPressed() {
         if (handleBackNavigation()) {
             return;
@@ -225,6 +246,9 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        scopeRefreshActive = false;
+        scopeRefreshGeneration++;
+        RemoteSettingsSync.removeServiceListener(scopeServiceListener);
         clearSearchHighlight();
         unregisterSystemBackCallback();
         super.onDestroy();
@@ -571,7 +595,10 @@ public class MainActivity extends Activity {
             entry.getValue().setVisibility(entry.getKey() == page ? View.VISIBLE : View.GONE);
         }
         resetPageTransforms();
-        if (page == Page.HOME && refreshSearchResults != null) refreshSearchResults.run();
+        if (page == Page.HOME) {
+            if (refreshSearchResults != null) refreshSearchResults.run();
+            refreshRestartScope();
+        }
         updateTopBar(page);
         updateSystemBackCallbackRegistration();
     }
@@ -1366,9 +1393,15 @@ public class MainActivity extends Activity {
         root.addView(row, matchWrap());
     }
 
-    public void addActionButtonRow(LinearLayout root, String titleText, String subtitleText,
+    public void addMultiChoiceRow(LinearLayout root, String titleText, String subtitleText,
+            String key, int defaultValue, int[] values, String[] labels, String emptyLabel) {
+        settingsUiFactory.addMultiChoiceRow(root, titleText, subtitleText,
+                key, defaultValue, values, labels, emptyLabel);
+    }
+
+    public TextView addActionButtonRow(LinearLayout root, String titleText, String subtitleText,
             String buttonText, Runnable action) {
-        settingsUiFactory.addActionButtonRow(root, titleText, subtitleText, buttonText, action);
+        return settingsUiFactory.addActionButtonRow(root, titleText, subtitleText, buttonText, action);
     }
 
     public void applyAllPositionOffsets() {
@@ -2207,53 +2240,165 @@ public class MainActivity extends Activity {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
     }
 
+    public void bindRestartCardContent(LinearLayout content) {
+        restartCardContent = content;
+        HomePageController.renderRestartTargets(this, content, null, true);
+    }
+
+    public void refreshRestartScope() {
+        if (!scopeRefreshActive || restartCardContent == null) {
+            return;
+        }
+        int generation = ++scopeRefreshGeneration;
+        HomePageController.renderRestartTargets(this, restartCardContent, null, true);
+        new Thread(() -> {
+            Set<String> scope = RemoteSettingsSync.readEnabledScope();
+            scopeHandler.post(() -> {
+                if (!scopeRefreshActive || generation != scopeRefreshGeneration) {
+                    return;
+                }
+                HomePageController.renderRestartTargets(this, restartCardContent, scope, false);
+                if (refreshSearchResults != null) refreshSearchResults.run();
+            });
+        }, "module-scope-reader").start();
+    }
+
+    public boolean isRestartTargetInstalled(RestartTarget target) {
+        if (target == RestartTarget.FRAMEWORK) {
+            return true;
+        }
+        try {
+            getPackageManager().getPackageInfo(target.packageName, 0);
+            return true;
+        } catch (PackageManager.NameNotFoundException e) {
+            return false;
+        }
+    }
+
+    public void restartScopeApp(RestartTarget target) {
+        if (batchRestartRunning) {
+            showToast("正在批量重启，请稍候");
+            return;
+        }
+        if (!isRestartTargetInstalled(target)) {
+            showToast(target.label + "未安装");
+            return;
+        }
+        switch (target) {
+            case SYSTEM_UI -> restartSystemUi();
+            case FRAMEWORK -> confirmDeviceRestart();
+            default -> restartRootCommands(target.label, target.restartCommands(), target.stopOnFirstSuccess());
+        }
+    }
+
+    public boolean isBatchRestartRunning() {
+        return batchRestartRunning;
+    }
+
+    public List<RestartTarget> getBatchRestartTargets(Set<String> enabledScope) {
+        List<RestartTarget> targets = new ArrayList<>();
+        if (enabledScope == null) return targets;
+        for (RestartTarget target : RestartTarget.values()) {
+            if (target != RestartTarget.FRAMEWORK && enabledScope.contains(target.packageName)
+                    && isRestartTargetInstalled(target)) {
+                targets.add(target);
+            }
+        }
+        // Restart UI hosts after the services and apps they may reconnect to.
+        if (targets.remove(RestartTarget.LAUNCHER)) targets.add(RestartTarget.LAUNCHER);
+        if (targets.remove(RestartTarget.SYSTEM_UI)) targets.add(RestartTarget.SYSTEM_UI);
+        return targets;
+    }
+
+    public void restartAllScopeApps(Set<String> enabledScope) {
+        if (batchRestartRunning) {
+            showToast("正在批量重启，请稍候");
+            return;
+        }
+        List<RestartTarget> targets = getBatchRestartTargets(enabledScope);
+        if (targets.isEmpty()) {
+            showToast("没有可批量重启的应用");
+            return;
+        }
+        List<String> labels = new ArrayList<>();
+        for (RestartTarget target : targets) labels.add(target.label);
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("重启全部应用")
+                .setMessage("将依次重启以下 " + targets.size() + " 个应用：\n\n"
+                        + TextUtils.join("、", labels)
+                        + "\n\n不包含系统框架，不会重启手机。请先保存正在进行的操作。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("重启全部", (d, which) -> startRestartBatch(targets, enabledScope))
+                .create();
+        dialog.show();
+        attachDialogButtonHaptics(dialog);
+    }
+
+    void startRestartBatch(List<RestartTarget> targets, Set<String> enabledScope) {
+        if (batchRestartRunning) return;
+        batchRestartRunning = true;
+        if (restartCardContent != null) {
+            HomePageController.renderRestartTargets(this, restartCardContent, enabledScope, false);
+        }
+        showToast("正在批量重启 " + targets.size() + " 个应用…");
+        Runnable start = () -> new Thread(() -> {
+            String result = runRestartBatch(targets);
+            scopeHandler.post(() -> {
+                batchRestartRunning = false;
+                Toast.makeText(this, result, Toast.LENGTH_LONG).show();
+                refreshRestartScope();
+            });
+        }, "scope-app-restarter").start();
+        if (targets.contains(RestartTarget.SYSTEM_UI)) {
+            returnHomeForRestart();
+            scopeHandler.postDelayed(start, SYSTEM_UI_RESTART_DELAY_MS);
+        } else {
+            start.run();
+        }
+    }
+
+    String runRestartBatch(List<RestartTarget> targets) {
+        int total = 0;
+        int success = 0;
+        List<String> failed = new ArrayList<>();
+        for (RestartTarget target : targets) {
+            if (target == RestartTarget.FRAMEWORK) continue;
+            total++;
+            if (isRestartTargetInstalled(target)
+                    && executeRootCommands(target.restartCommands(), target.stopOnFirstSuccess()).success()) {
+                success++;
+            } else {
+                failed.add(target.label);
+            }
+        }
+        return "批量重启完成：成功 " + success + "/" + total + " 个"
+                + (failed.isEmpty() ? "" : "；失败：" + TextUtils.join("、", failed) + "。请检查 Root 权限。");
+    }
+
+    private void confirmDeviceRestart() {
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("重启手机")
+                .setMessage("系统框架需要重启整部手机才能重新加载模块。请先保存正在进行的操作，是否立即重启？")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("重启手机", (d, which) ->
+                        restartRootCommands("手机", new String[]{"reboot"}))
+                .create();
+        dialog.show();
+        attachDialogButtonHaptics(dialog);
+    }
+
     public void restartSystemUi() {
+        returnHomeForRestart();
+        scopeHandler.postDelayed(() -> restartRootCommands("SystemUI", RestartTarget.SYSTEM_UI.restartCommands()),
+                SYSTEM_UI_RESTART_DELAY_MS);
+    }
+
+    private void returnHomeForRestart() {
         Intent homeIntent = new Intent(Intent.ACTION_MAIN);
         homeIntent.addCategory(Intent.CATEGORY_HOME);
         homeIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         startActivity(homeIntent);
         moveTaskToBack(true);
-        new Handler(Looper.getMainLooper()).postDelayed(() ->
-                        restartRootCommands("SystemUI", new String[]{
-                                "killall " + PACKAGE_SYSTEM_UI,
-                                "pkill -f " + PACKAGE_SYSTEM_UI,
-                                "am crash " + PACKAGE_SYSTEM_UI
-                        }),
-                SYSTEM_UI_RESTART_DELAY_MS);
-    }
-
-    public void restartLauncher() {
-        restartPackageProcess(PACKAGE_FLYME_LAUNCHER, "系统桌面");
-    }
-
-    public void restartShareResolver() {
-        // The system starts IntentResolver again when the next share sheet is opened.
-        restartPackageProcess(ShareTargetsHooks.PACKAGE, "系统分享");
-    }
-
-    public void restartAssistant() {
-        // Keep the bound service eligible for automatic reconnection from Launcher/SystemUI.
-        // force-stop would also mark the package stopped and remove its service bindings.
-        restartRootCommands("Aicy 纵览", new String[]{
-                "killall " + PACKAGE_MEIZU_ASSISTANT,
-                "pkill -f " + PACKAGE_MEIZU_ASSISTANT
-        });
-    }
-
-    public void restartSystemUiTools() {
-        restartRootCommands("SystemUITools", new String[]{
-                "pkill -f " + PACKAGE_FLYME_SYSTEMUI_TOOLS,
-                "killall " + PACKAGE_FLYME_SYSTEMUI_TOOLS,
-                "am crash " + PACKAGE_FLYME_SYSTEMUI_TOOLS
-        });
-    }
-
-    public void restartOneMindPps() {
-        restartRootCommands("OneMind/PPS", new String[]{
-                "cmd package set-stopped-state " + PACKAGE_MEIZU_PPS + " false",
-                "pkill -f " + PACKAGE_MEIZU_PPS,
-                "killall " + PACKAGE_MEIZU_PPS
-        }, false);
     }
 
     public void detectOneMindHookPoints(TextView statusView) {
@@ -2271,50 +2416,16 @@ public class MainActivity extends Activity {
         }).start();
     }
 
-    private void restartPackageProcess(String packageName, String label) {
-        restartRootCommands(label, new String[]{
-                "am force-stop " + packageName,
-                "pkill -f " + packageName,
-                "killall " + packageName
-        });
-    }
-
     private void restartRootCommands(String label, String[] commands) {
         restartRootCommands(label, commands, true);
     }
 
-    private void restartRootCommands(String label, String[] commands, boolean stopOnFirstSuccess) {
+    void restartRootCommands(String label, String[] commands, boolean stopOnFirstSuccess) {
         showToast("\u6b63\u5728\u91cd\u542f" + label + "...");
         new Thread(() -> {
-            boolean success = false;
-            String error = null;
-            try {
-                if (commands != null) {
-                    for (String command : commands) {
-                        if (command == null || command.trim().length() == 0) {
-                            continue;
-                        }
-                        Process process = new ProcessBuilder("su", "-c", command)
-                                .redirectErrorStream(true)
-                                .start();
-                        String output = readText(process.getInputStream()).trim();
-                        int exitCode = process.waitFor();
-                        if (exitCode == 0) {
-                            success = true;
-                            if (stopOnFirstSuccess) {
-                                break;
-                            }
-                        }
-                        if (output.length() > 0) {
-                            error = output;
-                        }
-                    }
-                }
-            } catch (Throwable t) {
-                error = t.getMessage();
-            }
-            boolean finalSuccess = success;
-            String finalError = error;
+            RootRestartResult result = executeRootCommands(commands, stopOnFirstSuccess);
+            boolean finalSuccess = result.success();
+            String finalError = result.error();
             new Handler(Looper.getMainLooper()).post(() -> {
                 if (finalSuccess) {
                     showToast(label + "\u5df2\u91cd\u542f");
@@ -2325,6 +2436,29 @@ public class MainActivity extends Activity {
                 }
             });
         }).start();
+    }
+
+    record RootRestartResult(boolean success, String error) {}
+
+    RootRestartResult executeRootCommands(String[] commands, boolean stopOnFirstSuccess) {
+        boolean success = false;
+        String error = null;
+        try {
+            for (String command : commands) {
+                Process process = new ProcessBuilder("su", "-c", command)
+                        .redirectErrorStream(true).start();
+                String output = readText(process.getInputStream()).trim();
+                int exitCode = process.waitFor();
+                if (exitCode == 0) {
+                    success = true;
+                    if (stopOnFirstSuccess) break;
+                }
+                if (!output.isEmpty()) error = output;
+            }
+        } catch (Throwable t) {
+            error = t.getMessage();
+        }
+        return new RootRestartResult(success, error);
     }
 
     public LinearLayout card(int color, int radiusDp) {

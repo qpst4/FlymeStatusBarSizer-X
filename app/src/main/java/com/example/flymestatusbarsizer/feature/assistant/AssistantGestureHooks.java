@@ -110,6 +110,7 @@ final class AssistantGestureHooks {
                     || ReflectUtils.getIntField(target, "mDisplayId", 0) != 0
                     || !ReflectUtils.getBooleanField(target, "mAllowGesture", false)
                     || !SettingsStore.assistantGestureAllowsSide(config.assistantGestureSide, leftEdge)
+                    || !AssistantGestureScenes.allows(config.assistantGestureScenes, target)
                     || ReflectUtils.getBooleanField(target, "mIsTrackpadThreeFingerSwipe", false)
                     || ReflectUtils.getBooleanField(target, "mInterceptBack", false) || locked()) return;
             float density = context.getResources().getDisplayMetrics().density;
@@ -135,7 +136,9 @@ final class AssistantGestureHooks {
         boolean tryClaim() {
             Object target = owner.get();
             if (last == null || target == null || consumed || !state.ready(SystemClock.uptimeMillis())) return false;
-            if (!AssistantClient.enabled(context) || !client.isReady() || locked()
+            ModuleConfig config = ModuleConfig.load(context);
+            if (!config.enabled || !config.assistantGestureEnabled || !client.isReady() || locked()
+                    || !AssistantGestureScenes.allows(config.assistantGestureScenes, target)
                     || !ReflectUtils.getBooleanField(target, "mAllowGesture", false)
                     || ReflectUtils.getBooleanField(target, "mInterceptBack", false)) { reset(); return false; }
             try {

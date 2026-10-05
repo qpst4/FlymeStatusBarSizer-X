@@ -374,6 +374,15 @@ public final class SettingsCardFactory {
                 "从所选屏幕侧边向内滑动并按住，距离和时间都达到阈值时从该侧打开负一屏。面板可左右滑动退出，直接返回默认向左退出。",
                 SettingsStore.KEY_ASSISTANT_GESTURE_ENABLED, SettingsStore.DEFAULT_ASSISTANT_GESTURE_ENABLED);
         activity.addDivider(page);
+        activity.addMultiChoiceRow(page, "触发场景",
+                "可多选，默认全选。常规界面包括应用与桌面；通知栏或控制中心展开时，按当前面板判断，"
+                        + "不受底下应用影响。未勾选的场景保留系统手势；全部取消后不触发，锁屏时始终不触发。",
+                SettingsStore.KEY_ASSISTANT_GESTURE_SCENES, SettingsStore.DEFAULT_ASSISTANT_GESTURE_SCENES,
+                new int[]{SettingsStore.ASSISTANT_GESTURE_SCENE_NORMAL,
+                        SettingsStore.ASSISTANT_GESTURE_SCENE_NOTIFICATION,
+                        SettingsStore.ASSISTANT_GESTURE_SCENE_CONTROL_CENTER},
+                new String[]{"常规界面", "通知栏", "控制中心"}, "未选择触发场景");
+        activity.addDivider(page);
         activity.addChoiceRow(page, "触发侧边", "选择哪一侧的返回手势可以打开负一屏。",
                 SettingsStore.KEY_ASSISTANT_GESTURE_SIDE, SettingsStore.DEFAULT_ASSISTANT_GESTURE_SIDE,
                 new int[]{SettingsStore.ASSISTANT_GESTURE_SIDE_LEFT,

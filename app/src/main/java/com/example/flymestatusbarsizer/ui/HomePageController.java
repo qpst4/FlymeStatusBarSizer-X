@@ -10,6 +10,8 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import java.util.Set;
+
 public final class HomePageController {
     private HomePageController() {
     }
@@ -60,33 +62,59 @@ public final class HomePageController {
     private static View buildRestartCard(MainActivity activity) {
         LinearLayout content = new LinearLayout(activity);
         content.setOrientation(LinearLayout.VERTICAL);
-        activity.addActionButtonRow(content, "SystemUI",
-                "修改状态栏、通知背景等设置后，重启系统界面。",
-                "重启", activity::restartSystemUi);
-        activity.addDivider(content);
-        activity.addActionButtonRow(content, "系统分享",
-                "更新分享列表功能后，重启系统分享进程（com.android.intentresolver）。"
-                        + "下次打开分享面板时会自动启动并加载新版模块，需要 Root 权限。",
-                "重启", activity::restartShareResolver);
-        activity.addDivider(content);
-        activity.addActionButtonRow(content, "系统桌面",
-                "修改文件夹、后台布局或堆叠参数后，重启系统桌面。",
-                "重启", activity::restartLauncher);
-        activity.addDivider(content);
-        activity.addActionButtonRow(content, "Aicy 纵览",
-                "更新全局负一屏功能后，重启 Aicy 纵览。",
-                "重启", activity::restartAssistant);
-        activity.addDivider(content);
-        activity.addActionButtonRow(content, "SystemUITools",
-                "重启后小窗相关修改立即重新加载。",
-                "重启", activity::restartSystemUiTools);
-        activity.addDivider(content);
-        activity.addActionButtonRow(content, "OneMind/PPS",
-                "开关变更后重启 PPS，让进程重新加载模块。",
-                "重启", activity::restartOneMindPps);
-        View card = activity.buildSectionCard("应用重启", "设置修改后，在这里重启对应应用。", content);
+        activity.bindRestartCardContent(content);
+        View card = activity.buildSectionCard("应用重启",
+                "仅显示 LSPosed 中已启用且已安装的作用域应用；返回应用时自动刷新。重启需要 Root 权限。", content);
         card.setBackground(activity.roundRect(activity.primaryContainerColor(), 24));
         return card;
+    }
+
+    public static void renderRestartTargets(MainActivity activity, LinearLayout content,
+            Set<String> enabledScope, boolean loading) {
+        content.removeAllViews();
+        if (loading) {
+            content.addView(text(activity, "正在读取已启用的作用域…", 14, activity.subtextColor()));
+            return;
+        }
+        if (enabledScope == null) {
+            content.addView(text(activity, "无法读取已启用的作用域，请确认 LSPosed 和模块已启用。",
+                    14, activity.subtextColor()));
+            activity.addActionButtonRow(content, "重新读取作用域",
+                    "连接框架后重试；也可从 LSPosed 返回应用以自动刷新。",
+                    "重试", activity::refreshRestartScope);
+            return;
+        }
+        int batchCount = activity.getBatchRestartTargets(enabledScope).size();
+        boolean restarting = activity.isBatchRestartRunning();
+        if (batchCount > 0) {
+            TextView button = activity.addActionButtonRow(content, "全部应用",
+                    "依次重启当前列表中的应用，最后重启系统桌面和 SystemUI。完成后汇总结果。",
+                    restarting ? "重启中…" : "重启全部", () -> activity.restartAllScopeApps(enabledScope));
+            button.setEnabled(!restarting);
+            button.setAlpha(restarting ? 0.4f : 1f);
+            content.addView(text(activity, "共 " + batchCount + " 个应用，不含系统框架，不会重启手机。",
+                    12, activity.subtextColor()));
+        }
+        for (RestartTarget target : RestartTarget.values()) {
+            if (!enabledScope.contains(target.packageName) || !activity.isRestartTargetInstalled(target)) {
+                continue;
+            }
+            if (content.getChildCount() > 0) {
+                activity.addDivider(content);
+            }
+            String buttonText = target == RestartTarget.FRAMEWORK ? "重启手机" : "重启";
+            TextView button = activity.addActionButtonRow(content, target.label, target.summary,
+                    buttonText, () -> activity.restartScopeApp(target));
+            button.setContentDescription(target.label + "，" + buttonText);
+            button.setEnabled(!restarting);
+            button.setAlpha(restarting ? 0.4f : 1f);
+        }
+        if (content.getChildCount() == 0) {
+            String message = enabledScope.isEmpty()
+                    ? "尚未启用任何作用域，请在 LSPosed 中勾选后返回。"
+                    : "已启用的作用域中没有可重启的已安装应用。";
+            content.addView(text(activity, message, 14, activity.subtextColor()));
+        }
     }
 
     private static LinearLayout addGroup(MainActivity activity, LinearLayout root, String title) {

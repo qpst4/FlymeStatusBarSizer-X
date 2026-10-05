@@ -4,7 +4,11 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.util.Log;
 
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
 
 import io.github.libxposed.service.XposedService;
 import io.github.libxposed.service.XposedServiceHelper;
@@ -18,6 +22,8 @@ public final class RemoteSettingsSync {
     private static volatile boolean listenerRegistered;
     private static volatile Context appContext;
     private static volatile SharedPreferences remotePrefs;
+    private static volatile XposedService xposedService;
+    private static final Set<Runnable> serviceListeners = new CopyOnWriteArraySet<>();
 
     private RemoteSettingsSync() {
     }
@@ -32,23 +38,30 @@ public final class RemoteSettingsSync {
             if (!listenerRegistered) {
                 XposedServiceHelper.registerListener(new XposedServiceHelper.OnServiceListener() {
                     @Override
-                public void onServiceBind(XposedService service) {
-                    synchronized (LOCK) {
-                        try {
-                            remotePrefs = service.getRemotePreferences(SettingsStore.PREFS);
-                        } catch (Throwable t) {
+                    public void onServiceBind(XposedService service) {
+                        synchronized (LOCK) {
+                            xposedService = service;
+                            try {
+                                remotePrefs = service.getRemotePreferences(SettingsStore.PREFS);
+                            } catch (Throwable t) {
                                 remotePrefs = null;
-                            Log.w(TAG, "Failed to obtain remote preferences from Xposed service", t);
+                                Log.w(TAG, "Failed to obtain remote preferences from Xposed service", t);
+                            }
                         }
+                        notifyServiceListeners();
+                        syncIfNeeded(appContext);
                     }
-                    syncIfNeeded(appContext);
-                }
 
                     @Override
                     public void onServiceDied(XposedService service) {
                         synchronized (LOCK) {
+                            if (xposedService != service) {
+                                return;
+                            }
+                            xposedService = null;
                             remotePrefs = null;
                         }
+                        notifyServiceListeners();
                     }
                 });
                 listenerRegistered = true;
@@ -89,6 +102,36 @@ public final class RemoteSettingsSync {
 
     public static SharedPreferences remotePrefs() {
         return remotePrefs;
+    }
+
+    /** Call off the UI thread. Null means unavailable; an empty set means no scope enabled. */
+    public static Set<String> readEnabledScope() {
+        XposedService service = xposedService;
+        if (service == null) {
+            return null;
+        }
+        try {
+            Set<String> scope = new HashSet<>(service.getScope());
+            return service == xposedService ? Collections.unmodifiableSet(scope) : null;
+        } catch (RuntimeException e) {
+            Log.w(TAG, "Failed to read module scope from Xposed service", e);
+            return null;
+        }
+    }
+
+    // XposedServiceHelper has a single listener slot; share the existing connection with UI.
+    public static void addServiceListener(Runnable listener) {
+        serviceListeners.add(listener);
+    }
+
+    public static void removeServiceListener(Runnable listener) {
+        serviceListeners.remove(listener);
+    }
+
+    private static void notifyServiceListeners() {
+        for (Runnable listener : serviceListeners) {
+            listener.run();
+        }
     }
 
     private static void syncIfNeeded(Context context) {

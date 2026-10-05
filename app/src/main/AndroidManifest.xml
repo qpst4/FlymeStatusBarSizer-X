@@ -14,9 +14,19 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
+        <package android:name="com.android.systemui" />
+        <package android:name="com.android.intentresolver" />
+        <package android:name="com.meizu.media.gallery" />
         <package android:name="com.meizu.pps" />
+        <package android:name="com.meizu.safe" />
         <package android:name="com.meizu.flyme.launcher" />
         <package android:name="com.meizu.assistant" />
+        <package android:name="com.flyme.systemuitools" />
+        <package android:name="com.upuphone.carlink" />
+        <package android:name="com.android.inputmethod.latin" />
+        <package android:name="com.google.android.inputmethod.latin" />
+        <package android:name="com.tencent.wetype" />
+        <package android:name="flyme.inputmethod" />
     </queries>
 
     <application
