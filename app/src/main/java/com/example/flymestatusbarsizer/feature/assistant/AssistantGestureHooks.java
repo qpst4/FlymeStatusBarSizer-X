@@ -111,7 +111,7 @@ final class AssistantGestureHooks {
                     || ReflectUtils.getBooleanField(target, "mInterceptBack", false) || locked()) return;
             float density = context.getResources().getDisplayMetrics().density;
             state.begin(event.getX(), event.getY(), event.getDownTime(),
-                    config.assistantGestureDistanceDp * density, config.assistantGestureHoldMs, 48f * density);
+                    config.assistantGestureDistanceDp * density, config.assistantGestureHoldMs, 12f * density);
             remember(event);
             handler.postAtTime(timeout, state.deadline());
         }

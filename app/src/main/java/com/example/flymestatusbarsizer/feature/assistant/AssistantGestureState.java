@@ -4,17 +4,17 @@ package com.example.flymestatusbarsizer.feature.assistant;
 final class AssistantGestureState {
     private boolean tracking;
     private boolean claimed;
-    private float startX, startY, dx, dy, distance, verticalLimit;
+    private float startX, startY, dx, dy, distance, backwardLimit;
     private long deadline;
 
-    void begin(float x, float y, long downTime, float distance, long duration, float verticalLimit) {
+    void begin(float x, float y, long downTime, float distance, long duration, float backwardLimit) {
         tracking = true;
         claimed = false;
         startX = x;
         startY = y;
         dx = dy = 0;
         this.distance = distance;
-        this.verticalLimit = verticalLimit;
+        this.backwardLimit = backwardLimit;
         deadline = downTime + duration;
     }
 
@@ -22,7 +22,7 @@ final class AssistantGestureState {
         dx = x - startX;
         dy = y - startY;
         if (pointerCount != 1 || !Float.isFinite(dx) || !Float.isFinite(dy)
-                || Math.abs(dy) > verticalLimit || dx < -verticalLimit / 4f) cancel();
+                || dx < -backwardLimit) cancel();
     }
 
     boolean ready(long now) {

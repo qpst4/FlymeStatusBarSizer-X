@@ -6,7 +6,7 @@ import static org.junit.Assert.*;
 public class AssistantGestureStateTest {
     private AssistantGestureState gesture() {
         AssistantGestureState state = new AssistantGestureState();
-        state.begin(5, 500, 1000, 80, 600, 48);
+        state.begin(5, 500, 1000, 80, 600, 12);
         return state;
     }
 
@@ -44,12 +44,24 @@ public class AssistantGestureStateTest {
         assertTrue(state.ready(1700));
     }
 
-    @Test public void verticalDriftOrSecondFingerCancelsThisStream() {
+    @Test public void verticalDriftBeyond48DoesNotCancelThisStream() {
+        for (float y : new float[] {400, 600}) {
+            AssistantGestureState state = gesture();
+            state.move(165, y, 1);
+            assertTrue(state.ready(1600));
+        }
+    }
+
+    @Test public void predominantlyVerticalMovementCanRecoverWhenHorizontalDistanceCatchesUp() {
         AssistantGestureState state = gesture();
-        state.move(150, 550, 1);
-        state.move(150, 500, 1);
+        state.move(85, 600, 1);
         assertFalse(state.ready(1600));
-        state = gesture();
+        state.move(155, 600, 1);
+        assertTrue(state.ready(1600));
+    }
+
+    @Test public void secondFingerCancelsThisStream() {
+        AssistantGestureState state = gesture();
         state.move(150, 500, 2);
         state.move(150, 500, 1);
         assertFalse(state.ready(1600));
@@ -68,7 +80,7 @@ public class AssistantGestureStateTest {
         AssistantGestureState state = gesture();
         state.move(100, 500, 1);
         state.claim();
-        state.begin(5, 500, 3000, 80, 600, 48);
+        state.begin(5, 500, 3000, 80, 600, 12);
         state.move(100, 500, 1);
         assertFalse(state.ready(3599));
         assertTrue(state.ready(3600));
