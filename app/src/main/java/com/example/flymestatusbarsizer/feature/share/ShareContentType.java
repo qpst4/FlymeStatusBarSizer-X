@@ -13,6 +13,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.Locale;
+import java.util.List;
+import java.util.WeakHashMap;
 
 public enum ShareContentType {
     DEFAULT("默认 / 其他", "*/*"), IMAGE("图片", "image/*"), VIDEO("视频", "video/*"),
@@ -37,7 +39,13 @@ public enum ShareContentType {
 
     /** Uses the share payload, including Flyme wrappers and generic file MIME types. */
     public static ShareContentType resolve(Context context, Intent intent) {
+        return resolve(context, intent, null);
+    }
+
+    static ShareContentType resolve(Context context, Intent intent, Cache cache) {
         if (intent == null) return DEFAULT;
+        Intent owner = intent;
+        boolean keepCached = false;
         try {
             ClipData outerClip = null;
             // Flyme's IntentParser unwraps EXTRA_INTENT even for an explicitly launched chooser
@@ -77,22 +85,66 @@ public enum ShareContentType {
             if (uris.isEmpty() && intent.getData() != null) uris.add(intent.getData());
 
             ShareContentType clipType = attachmentClipType(clip);
+            Key key = cache == null || uris.isEmpty() ? null
+                    : new Key(intent.getAction(), mime, new ArrayList<>(uris), clipType);
+            ShareContentType cached = key == null ? null : cache.get(owner, key);
+            if (cached != null) {
+                keepCached = true;
+                return cached;
+            }
+            boolean cacheable = true;
             ShareContentType result = null;
             for (Uri uri : uris) {
                 ShareContentType next = fromUri(context, uri);
-                if (next == null) next = clipType;
+                if (next == null) {
+                    // A ClipData fallback may hide a transient provider/permission failure.
+                    cacheable = false;
+                    next = clipType;
+                }
                 if (next == null || next == DEFAULT || (result != null && result != next)) return DEFAULT;
                 result = next;
             }
-            if (result != null) return result;
+            if (result != null) {
+                if (key != null && cacheable) {
+                    cache.put(owner, key, result);
+                    keepCached = true;
+                }
+                return result;
+            }
             if (hasStream) return DEFAULT;
             if (clipType != null) return clipType;
             return intent.hasExtra(Intent.EXTRA_TEXT) ? TEXT : DEFAULT;
         } catch (RuntimeException error) {
             // Missing URI permissions or malformed extras must not break the system share sheet.
             return DEFAULT;
+        } finally {
+            if (cache != null && !keepCached) cache.remove(owner);
         }
     }
+
+    // Weak Intent keys scope reuse to one share, without retaining Activities or payloads.
+    // Snapshot URI lists also detect in-place mutations of Gallery's selection/ClipData.
+    // Unknown/mixed results are not cached, allowing permission/provider failures to recover.
+    static final class Cache {
+        private final WeakHashMap<Intent, Entry> entries = new WeakHashMap<>();
+
+        synchronized ShareContentType get(Intent intent, Key key) {
+            Entry entry = entries.get(intent);
+            if (entry != null && entry.key.equals(key)) return entry.type;
+            entries.remove(intent);
+            return null;
+        }
+
+        synchronized void remove(Intent intent) { entries.remove(intent); }
+
+        synchronized void put(Intent intent, Key key, ShareContentType type) {
+            if (entries.size() >= 32) entries.clear();
+            entries.put(intent, new Entry(key, type));
+        }
+    }
+
+    private record Key(String action, String mime, List<Uri> uris, ShareContentType clipType) {}
+    private record Entry(Key key, ShareContentType type) {}
 
     private static boolean isGenericMime(String mime) {
         if (mime == null) return true;

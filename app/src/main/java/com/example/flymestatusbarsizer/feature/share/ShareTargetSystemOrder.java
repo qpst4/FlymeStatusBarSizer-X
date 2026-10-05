@@ -15,6 +15,8 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.CancellationException;
+import java.util.function.Function;
 
 /** Reads Flyme's current ranking without changing its favorites or usage history. */
 final class ShareTargetSystemOrder {
@@ -22,11 +24,49 @@ final class ShareTargetSystemOrder {
 
     private ShareTargetSystemOrder() {}
 
-    static Result load(Context context, List<ResolveInfo> source) {
-        try {
+    static final class Session {
+        private Binding binding;
+        private boolean attempted;
+
+        Result load(Context context, List<ResolveInfo> source, Function<ResolveInfo, String> label) {
+            try {
+                if (!attempted) {
+                    attempted = true;
+                    binding = new Binding(context);
+                }
+                if (binding != null) return binding.load(context, source, label);
+            } catch (CancellationException cancelled) {
+                throw cancelled;
+            } catch (ReflectiveOperationException | RuntimeException | LinkageError error) {
+                Log.w("FlymeStatusBarSizer", "Cannot read Flyme share order; retaining package query order", error);
+            }
+            return new Result(new ArrayList<>(source), false);
+        }
+    }
+
+    private static final class Binding {
+        final Class<?> repositoryClass;
+        final Constructor<?> comparatorConstructor;
+        final Constructor<?> repositoryConstructor;
+        final Method itemFor;
+        final Method nextOrder;
+        final Method state;
+        final Method setState;
+        final Method setOrder;
+        final Method isDevice;
+        final Method isDefault;
+        final Constructor<?> displayConstructor;
+        final Field deviceField;
+        final Field favoriteField;
+        final Field labelField;
+        final Field resolveField;
+        final Field comparatorRepository;
+        final Method useCustomizeFavorite;
+
+        Binding(Context context) throws ReflectiveOperationException {
             ClassLoader loader = context.getClassLoader();
             Class<?> displayClass = Class.forName(PREFIX + "bean.DisplayResolveInfo", false, loader);
-            Class<?> repositoryClass = Class.forName(PREFIX + "db.ChooserRepository", false, loader);
+            repositoryClass = Class.forName(PREFIX + "db.ChooserRepository", false, loader);
             Class<?> itemClass = Class.forName(PREFIX + "db.ChooserItem", false, loader);
             Class<?> appClass = Class.forName(PREFIX + "chooser.AppInfo", false, loader);
             Class<?> comparatorClass = Class.forName(PREFIX + "chooser.ChooserItemComparator", false, loader);
@@ -40,26 +80,33 @@ final class ShareTargetSystemOrder {
 
             // A fresh, isolated repository rereads Settings.System on every scan. Using
             // ChooserFinder.sortAndLoadDisplayInfo instead would WRITE new favorites.
-            Constructor<?> repositoryConstructor = repositoryClass.getDeclaredConstructor(Context.class);
+            repositoryConstructor = repositoryClass.getDeclaredConstructor(Context.class);
             repositoryConstructor.setAccessible(true);
+            itemFor = repositoryClass.getMethod("getChooserItemInfo", ResolveInfo.class);
+            nextOrder = repositoryClass.getMethod("getNextOrder");
+            state = itemClass.getMethod("getState");
+            setState = itemClass.getMethod("setState", int.class);
+            setOrder = itemClass.getMethod("setOrder", int.class);
+            isDevice = appClass.getMethod("isDevice", ResolveInfo.class);
+            isDefault = appClass.getMethod("isDefaultFavorite", ResolveInfo.class);
+            displayConstructor = displayClass.getConstructor(ResolveInfo.class, Intent.class);
+            deviceField = displayClass.getField("isDevice");
+            favoriteField = displayClass.getField("isFavorite");
+            labelField = displayClass.getField("activityLabel");
+            resolveField = displayClass.getField("resolveInfo");
+            useCustomizeFavorite = repositoryClass.getMethod("useCustomizeFavorite");
+            comparatorConstructor = comparatorClass.getConstructor(Context.class);
+            comparatorRepository = comparatorClass.getDeclaredField("mRepository");
+            comparatorRepository.setAccessible(true);
+        }
+
+        Result load(Context context, List<ResolveInfo> source, Function<ResolveInfo, String> label) throws ReflectiveOperationException {
             Object repository = repositoryConstructor.newInstance(context);
-            boolean custom = (boolean) repositoryClass.getMethod("useCustomizeFavorite").invoke(repository);
-            Method itemFor = repositoryClass.getMethod("getChooserItemInfo", ResolveInfo.class);
-            Method nextOrder = repositoryClass.getMethod("getNextOrder");
-            Method state = itemClass.getMethod("getState");
-            Method setState = itemClass.getMethod("setState", int.class);
-            Method setOrder = itemClass.getMethod("setOrder", int.class);
-            Method isDevice = appClass.getMethod("isDevice", ResolveInfo.class);
-            Method isDefault = appClass.getMethod("isDefaultFavorite", ResolveInfo.class);
-            Constructor<?> displayConstructor = displayClass.getConstructor(ResolveInfo.class, Intent.class);
-            Field deviceField = displayClass.getField("isDevice");
-            Field favoriteField = displayClass.getField("isFavorite");
-            Field labelField = displayClass.getField("activityLabel");
-            Field resolveField = displayClass.getField("resolveInfo");
+            boolean custom = (boolean) useCustomizeFavorite.invoke(repository);
             List<Object> display = new ArrayList<>();
             for (ResolveInfo info : source) {
                 Object target = displayConstructor.newInstance(info, null);
-                labelField.set(target, info.loadLabel(context.getPackageManager()).toString().replace("\n", ""));
+                labelField.set(target, label.apply(info).replace("\n", ""));
                 boolean device = (boolean) isDevice.invoke(null, info);
                 deviceField.setBoolean(target, device);
                 if (!device) {
@@ -79,10 +126,7 @@ final class ShareTargetSystemOrder {
                 display.add(target);
             }
             @SuppressWarnings("unchecked")
-            Comparator<Object> comparator = (Comparator<Object>) comparatorClass.getConstructor(Context.class)
-                    .newInstance(context);
-            Field comparatorRepository = comparatorClass.getDeclaredField("mRepository");
-            comparatorRepository.setAccessible(true);
+            Comparator<Object> comparator = (Comparator<Object>) comparatorConstructor.newInstance(context);
             comparatorRepository.set(comparator, repository);
             display.sort(comparator);
 
@@ -99,9 +143,6 @@ final class ShareTargetSystemOrder {
             favorites.addAll(more);
             favorites.addAll(devices);
             return new Result(favorites, true);
-        } catch (ReflectiveOperationException | RuntimeException | LinkageError error) {
-            Log.w("FlymeStatusBarSizer", "Cannot read Flyme share order; retaining package query order", error);
-            return new Result(new ArrayList<>(source), false);
         }
     }
 

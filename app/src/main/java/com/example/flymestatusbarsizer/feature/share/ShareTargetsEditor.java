@@ -50,6 +50,7 @@ public final class ShareTargetsEditor {
     private final Executor scanner;
     private final BiFunction<android.content.Context, ShareContentType, ShareTargetCatalog.Snapshot> catalog;
     private final Map<ShareContentType, ShareTargetCatalog.Snapshot> catalogs = new EnumMap<>(ShareContentType.class);
+    private ShareTargetCatalog.Session scanSession;
     private ShareTargetProfiles profiles;
     private ShareTargetRules defaults;
     private ShareContentType selected = ShareContentType.DEFAULT;
@@ -81,7 +82,7 @@ public final class ShareTargetsEditor {
     private Switch enabled;
     private EditText search;
     private ShareTargetsDraft draft;
-    private boolean closed;
+    private volatile boolean closed;
     private boolean loading;
     private String dragComponent;
     private String dropComponent;
@@ -91,7 +92,7 @@ public final class ShareTargetsEditor {
     public ShareTargetsEditor(MainActivity activity) {
         this.activity = activity;
         this.scanner = command -> new Thread(command, "share-target-scan").start();
-        this.catalog = ShareTargetCatalog::load;
+        this.catalog = null;
     }
 
     ShareTargetsEditor(MainActivity activity, Executor scanner,
@@ -172,7 +173,12 @@ public final class ShareTargetsEditor {
                 dismissUndo();
                 stash();
                 selected = type;
-                selectDraft();
+                // The previous draft was stashed under its own type above.
+                draft = null;
+                targets.clear();
+                visible.clear();
+                if (catalogs.containsKey(type)) selectDraft();
+                else scanSelected();
             });
             typeTabs.put(type, tab);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
@@ -333,7 +339,7 @@ public final class ShareTargetsEditor {
     private void updateTabs() {
         for (Map.Entry<ShareContentType, TextView> entry : typeTabs.entrySet()) {
             styleTab(entry.getValue(), entry.getKey() == selected);
-            entry.getValue().setEnabled(!loading && draft != null);
+            entry.getValue().setEnabled(!loading && !catalogs.isEmpty());
         }
         styleTab(shownTab, !showHidden);
         styleTab(hiddenTab, showHidden);
@@ -351,6 +357,15 @@ public final class ShareTargetsEditor {
     private void load() {
         if (loading) return;
         stash();
+        // Invalidate all MIME snapshots and shared resources on explicit rescan.
+        ShareTargetCatalog.Snapshot previous = catalogs.get(selected);
+        catalogs.clear();
+        if (previous != null) catalogs.put(selected, previous);
+        scanSession = new ShareTargetCatalog.Session(() -> closed);
+        scanSelected();
+    }
+
+    private void scanSelected() {
         dismissUndo();
         clearDrag();
         loading = true;
@@ -362,16 +377,17 @@ public final class ShareTargetsEditor {
         empty.setText("正在加载分享入口…");
         empty.setVisibility(draft == null ? View.VISIBLE : View.GONE);
         android.content.Context context = activity.getApplicationContext();
+        ShareContentType requested = selected;
+        ShareTargetCatalog.Session session = scanSession;
         scanner.execute(() -> {
+            if (closed) return;
             try {
-                Map<ShareContentType, ShareTargetCatalog.Snapshot> found = new EnumMap<>(ShareContentType.class);
-                for (ShareContentType type : ShareContentType.values()) found.put(type, catalog.apply(context, type));
+                ShareTargetCatalog.Snapshot found = catalog == null
+                        ? session.load(context, requested) : catalog.apply(context, requested);
                 activity.runOnUiThread(() -> {
                     if (closed || activity.isFinishing() || activity.isDestroyed()) return;
-                    catalogs.clear();
-                    catalogs.putAll(found);
+                    catalogs.put(requested, found);
                     loading = false;
-                    independent.setEnabled(true);
                     selectDraft();
                 });
             } catch (RuntimeException error) {
@@ -419,6 +435,7 @@ public final class ShareTargetsEditor {
         for (ShareTargetCatalog.Target target : catalogs.get(selected).targets) targets.put(target.component, target);
         draft = new ShareTargetsDraft(targets.keySet(), profiles.rulesFor(selected, defaults));
         updatingSelection = true;
+        independent.setEnabled(true);
         profileRow.setVisibility(selected == ShareContentType.DEFAULT ? View.GONE : View.VISIBLE);
         independent.setChecked(profiles.hasOverride(selected));
         profileStatus.setText(profiles.hasOverride(selected) ? "独立配置" : "沿用默认");

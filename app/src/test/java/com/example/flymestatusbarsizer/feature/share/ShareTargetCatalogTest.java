@@ -44,6 +44,78 @@ public final class ShareTargetCatalogTest {
                 snapshot.targets.stream().map(t -> t.component).collect(Collectors.toList()));
     }
 
+    @Test @Config(shadows = QueryPackageManager.class)
+    public void sessionReusesLabelsAndIconResourcesButNotDrawableInstances() {
+        Context context = RuntimeEnvironment.getApplication();
+        QueryPackageManager pm = (QueryPackageManager) Shadows.shadowOf(context.getPackageManager());
+        CountingInfo info = new CountingInfo(target("shared.app", "Shared"));
+        for (String mime : List.of("image/*", "application/pdf")) {
+            pm.results.put(mime, List.of(info));
+        }
+        ShareTargetCatalog.Session session = new ShareTargetCatalog.Session();
+        ShareTargetCatalog.Target image = session.load(context, ShareContentType.IMAGE).targets.get(0);
+        ShareTargetCatalog.Target pdf = session.load(context, ShareContentType.PDF).targets.get(0);
+        assertEquals(1, info.labelLoads);
+        assertEquals(1, info.iconLoads);
+        assertEquals(image.label, pdf.label);
+        assertNotSame(image.icon, pdf.icon);
+        new ShareTargetCatalog.Session().load(context, ShareContentType.IMAGE);
+        assertEquals(2, info.labelLoads);
+        assertEquals(2, info.iconLoads);
+    }
+
+    @Test @Config(shadows = QueryPackageManager.class)
+    public void sessionPreservesMimeSpecificLabelsForTheSameComponent() {
+        Context context = RuntimeEnvironment.getApplication();
+        QueryPackageManager pm = (QueryPackageManager) Shadows.shadowOf(context.getPackageManager());
+        pm.results.put("image/*", List.of(target("shared.app", "Send image")));
+        pm.results.put("application/pdf", List.of(target("shared.app", "Send PDF")));
+        ShareTargetCatalog.Session session = new ShareTargetCatalog.Session();
+        assertEquals("Send image", session.load(context, ShareContentType.IMAGE).targets.get(0).label);
+        assertEquals("Send PDF", session.load(context, ShareContentType.PDF).targets.get(0).label);
+    }
+
+    @Test @Config(shadows = QueryPackageManager.class)
+    public void cancellationBetweenTargetsStopsFurtherResourceLoads() {
+        Context context = RuntimeEnvironment.getApplication();
+        QueryPackageManager pm = (QueryPackageManager) Shadows.shadowOf(context.getPackageManager());
+        CountingInfo first = new CountingInfo(target("first.app", "First"));
+        CountingInfo second = new CountingInfo(target("second.app", "Second"));
+        pm.results.put("image/*", List.of(first, second));
+        ShareTargetCatalog.Session session = new ShareTargetCatalog.Session(() -> first.iconLoads > 0);
+        assertThrows(java.util.concurrent.CancellationException.class,
+                () -> session.load(context, ShareContentType.IMAGE));
+        assertEquals(1, first.iconLoads);
+        assertEquals(0, second.iconLoads);
+    }
+
+    // Preserve ResolveInfo subclasses and per-Intent metadata. The stock shadow rebuilds
+    // ResolveInfo from a component registry, losing both details needed by these tests.
+    @org.robolectric.annotation.Implements(className = "android.app.ApplicationPackageManager",
+            isInAndroidSdk = false)
+    public static class QueryPackageManager extends org.robolectric.shadows.ShadowApplicationPackageManager {
+        final java.util.Map<String, List<ResolveInfo>> results = new java.util.HashMap<>();
+        @org.robolectric.annotation.Implementation
+        @Override protected List<ResolveInfo> queryIntentActivities(Intent intent, int flags) {
+            return Intent.ACTION_SEND.equals(intent.getAction())
+                    ? results.getOrDefault(intent.getType(), List.of()) : List.of();
+        }
+    }
+
+    private static final class CountingInfo extends ResolveInfo {
+        int labelLoads;
+        int iconLoads;
+        CountingInfo(ResolveInfo info) { super(info); }
+        @Override public CharSequence loadLabel(android.content.pm.PackageManager pm) {
+            labelLoads++;
+            return nonLocalizedLabel;
+        }
+        @Override public android.graphics.drawable.Drawable loadIcon(android.content.pm.PackageManager pm) {
+            iconLoads++;
+            return new android.graphics.drawable.ColorDrawable(android.graphics.Color.BLUE);
+        }
+    }
+
     private static ResolveInfo target(String pkg, String name) {
         ResolveInfo info = new ResolveInfo();
         info.nonLocalizedLabel = name;

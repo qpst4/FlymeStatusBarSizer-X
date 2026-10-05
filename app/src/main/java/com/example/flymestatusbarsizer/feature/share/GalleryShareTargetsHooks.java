@@ -71,6 +71,7 @@ public final class GalleryShareTargetsHooks {
     // item Intent=b. Resolve obfuscated members by their unique shape, failing closed
     // on ambiguity instead of depending on JADX's generated field aliases.
     static final class Binding {
+        private final ShareContentType.Cache contentTypes = new ShareContentType.Cache();
         final Method rebuild;
         private final Field context;
         private final Field resolveInfo;
@@ -97,9 +98,12 @@ public final class GalleryShareTargetsHooks {
             if (!config.enabled || !config.shareTargetsEnabled || source.isEmpty()) return source;
             // Every target carries the query Intent for this selection. The hosting Activity
             // is launched with internal album extras and does not carry the share MIME.
-            Intent payload = (Intent) intent.get(source.get(0));
-            ShareContentType type = ShareContentType.resolve((Context) context.get(adapter), payload);
-            ShareTargetRules rules = config.shareTargetProfiles.rulesFor(type, config.shareTargetRules);
+            ShareTargetRules rules = config.shareTargetRules;
+            if (config.shareTargetProfiles.hasOverrides()) {
+                Intent payload = (Intent) intent.get(source.get(0));
+                ShareContentType type = ShareContentType.resolve((Context) context.get(adapter), payload, contentTypes);
+                rules = config.shareTargetProfiles.rulesFor(type, rules);
+            }
             if (rules.isEmpty()) return source;
             // Keep the adapter's full source list intact: More/repository refreshes rebuild
             // it again, and removing a rule must be able to restore previously hidden items.

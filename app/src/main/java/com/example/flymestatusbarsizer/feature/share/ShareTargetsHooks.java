@@ -14,6 +14,7 @@ import java.util.List;
 
 public final class ShareTargetsHooks {
     public static final String PACKAGE = "com.android.intentresolver";
+    private static final ShareContentType.Cache CONTENT_TYPES = new ShareContentType.Cache();
     private static final String TAG = "FlymeStatusBarSizer";
 
     private ShareTargetsHooks() {}
@@ -41,6 +42,7 @@ public final class ShareTargetsHooks {
                     }
                     // Runs before the system's zero/one-target checks and before adapter grouping.
                     ShareTargetRules rules = rulesFor(config, (Activity) activity);
+                    if (rules.isEmpty()) return original;
                     return rules.apply((List<?>) original,
                             value -> componentOf(value, resolveInfoField));
                 } catch (Throwable error) {
@@ -73,7 +75,7 @@ public final class ShareTargetsHooks {
                     if (config.enabled && config.shareTargetsEnabled
                             && isChooser.getBoolean(chain.getThisObject()) && args[0] instanceof List<?>) {
                         ShareTargetRules rules = rulesFor(config, (Activity) activityField.get(chain.getThisObject()));
-                        replacement = new Object[]{rules.apply((List<?>) args[0],
+                        if (!rules.isEmpty()) replacement = new Object[]{rules.apply((List<?>) args[0],
                                 value -> componentOf(value, resolveInfoField))};
                     }
                 } catch (Throwable error) {
@@ -95,8 +97,9 @@ public final class ShareTargetsHooks {
     }
 
     static ShareTargetRules rulesFor(ModuleConfig config, Activity activity) {
+        if (!config.shareTargetProfiles.hasOverrides()) return config.shareTargetRules;
         ShareContentType type = activity == null ? ShareContentType.DEFAULT
-                : ShareContentType.resolve(activity, activity.getIntent());
+                : ShareContentType.resolve(activity, activity.getIntent(), CONTENT_TYPES);
         return config.shareTargetProfiles.rulesFor(type, config.shareTargetRules);
     }
 

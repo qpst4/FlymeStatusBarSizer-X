@@ -11,6 +11,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
+import java.util.function.BooleanSupplier;
 
 public final class ShareTargetCatalog {
     private ShareTargetCatalog() {}
@@ -20,33 +22,90 @@ public final class ShareTargetCatalog {
     }
 
     public static Snapshot load(Context context, ShareContentType type) {
-        PackageManager pm = context.getPackageManager();
-        Map<String, ResolveInfo> found = new LinkedHashMap<>();
-        for (String action : new String[]{Intent.ACTION_SEND, Intent.ACTION_SEND_MULTIPLE}) {
-            Intent intent = new Intent(action).setType(type.mime);
-            for (ResolveInfo info : pm.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)) {
-                ActivityInfo ai = info.activityInfo;
-                if (ai == null || !ai.exported || !ai.enabled || ai.applicationInfo == null
-                        || !ai.applicationInfo.enabled) continue;
-                String component = ShareTargetRules.normalizeComponent(ai.packageName + "/" + ai.name);
-                if (component.isEmpty() || found.containsKey(component)) continue;
-                found.put(component, info);
-            }
-        }
-        ShareTargetSystemOrder.Result ordered = ShareTargetSystemOrder.load(context, new ArrayList<>(found.values()));
-        List<Target> result = new ArrayList<>();
-        for (ResolveInfo info : ordered.targets) {
-            ActivityInfo ai = info.activityInfo;
-            String component = ShareTargetRules.normalizeComponent(ai.packageName + "/" + ai.name);
-            String appName = String.valueOf(ai.applicationInfo.loadLabel(pm));
-            String label = familiarLabel(component, String.valueOf(info.loadLabel(pm)));
-            Drawable icon;
-            try { icon = info.loadIcon(pm); }
-            catch (RuntimeException ignored) { icon = pm.getDefaultActivityIcon(); }
-            result.add(new Target(component, label, appName, icon));
-        }
-        return new Snapshot(result, ordered.available);
+        return new Session().load(context, type);
     }
+
+    /** Shared only by one editor scan; an explicit rescan starts a fresh session. */
+    static final class Session {
+        private final BooleanSupplier cancelled;
+
+        Session() { this(() -> false); }
+        Session(BooleanSupplier cancelled) { this.cancelled = cancelled; }
+
+        private void checkCancelled() {
+            if (cancelled.getAsBoolean()) throw new CancellationException();
+        }
+
+        private final Map<MetadataKey, Target> metadata = new LinkedHashMap<>();
+        private final Map<MetadataKey, String> labels = new LinkedHashMap<>();
+        private final Map<String, String> appNames = new LinkedHashMap<>();
+        private final ShareTargetSystemOrder.Session systemOrder = new ShareTargetSystemOrder.Session();
+
+        Snapshot load(Context context, ShareContentType type) {
+            PackageManager pm = context.getPackageManager();
+            Map<String, ResolveInfo> found = new LinkedHashMap<>();
+            for (String action : new String[]{Intent.ACTION_SEND, Intent.ACTION_SEND_MULTIPLE}) {
+                checkCancelled();
+                Intent intent = new Intent(action).setType(type.mime);
+                for (ResolveInfo info : pm.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)) {
+                    ActivityInfo ai = info.activityInfo;
+                    if (ai == null || !ai.exported || !ai.enabled || ai.applicationInfo == null
+                            || !ai.applicationInfo.enabled) continue;
+                    String component = ShareTargetRules.normalizeComponent(ai.packageName + "/" + ai.name);
+                    if (component.isEmpty() || found.containsKey(component)) continue;
+                    found.put(component, info);
+                }
+            }
+            checkCancelled();
+            ShareTargetSystemOrder.Result ordered = systemOrder.load(context, new ArrayList<>(found.values()),
+                    info -> label(pm, info));
+            List<Target> result = new ArrayList<>();
+            for (ResolveInfo info : ordered.targets) {
+                checkCancelled();
+                ActivityInfo ai = info.activityInfo;
+                String component = ShareTargetRules.normalizeComponent(ai.packageName + "/" + ai.name);
+                // ResolveInfo may override the Activity label/icon differently for each MIME.
+                MetadataKey key = metadataKey(info);
+                Target cached = metadata.get(key);
+                if (cached == null) {
+                    String appName = appNames.get(ai.packageName);
+                    if (appName == null) {
+                        appName = String.valueOf(ai.applicationInfo.loadLabel(pm));
+                        appNames.put(ai.packageName, appName);
+                    }
+                    String label = familiarLabel(component, label(pm, info));
+                    Drawable icon;
+                    try { icon = info.loadIcon(pm); }
+                    catch (RuntimeException ignored) { icon = pm.getDefaultActivityIcon(); }
+                    cached = new Target(component, label, appName, icon);
+                    metadata.put(key, cached);
+                }
+                Drawable.ConstantState state = cached.icon == null ? null : cached.icon.getConstantState();
+                // A Drawable owns a view callback; share its resources, not the mutable instance.
+                Drawable icon = state == null ? null : state.newDrawable(context.getResources()).mutate();
+                if (icon == null && cached.icon != null) {
+                    try { icon = info.loadIcon(pm); }
+                    catch (RuntimeException ignored) { icon = pm.getDefaultActivityIcon(); }
+                }
+                result.add(new Target(component, cached.label, cached.appName, icon));
+            }
+            return new Snapshot(result, ordered.available);
+        }
+
+        private String label(PackageManager pm, ResolveInfo info) {
+            checkCancelled();
+            return labels.computeIfAbsent(metadataKey(info), key -> String.valueOf(info.loadLabel(pm)));
+        }
+
+        private MetadataKey metadataKey(ResolveInfo info) {
+            return new MetadataKey(info.activityInfo.packageName + "/" + info.activityInfo.name,
+                    info.resolvePackageName, info.labelRes,
+                    info.nonLocalizedLabel == null ? null : info.nonLocalizedLabel.toString(), info.icon);
+        }
+    }
+
+    private record MetadataKey(String component, String resolvePackage, int labelRes,
+                               String label, int icon) {}
 
     private static String familiarLabel(String component, String fallback) {
         switch (component) {

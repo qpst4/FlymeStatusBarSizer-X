@@ -14,6 +14,8 @@ public final class ShareTargetProfiles {
         return overrides.getOrDefault(type, defaults);
     }
 
+    public boolean hasOverrides() { return !overrides.isEmpty(); }
+
     public boolean hasOverride(ShareContentType type) { return overrides.containsKey(type); }
 
     public void set(ShareContentType type, ShareTargetRules rules) {

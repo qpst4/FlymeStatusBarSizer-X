@@ -74,6 +74,57 @@ public final class ShareTargetsEditorTest {
         dialog = ShadowDialog.getLatestDialog();
     }
 
+    @Test public void scansOnlyRequestedTypesAndRescanInvalidatesPreviouslyVisitedTypes() {
+        java.util.List<ShareContentType> scans = new java.util.ArrayList<>();
+        new ShareTargetsEditor(activity, Runnable::run, (context, type) -> {
+            scans.add(type);
+            return List.of(target(FRIEND, "微信好友"));
+        }).show();
+        captureDialog();
+        assertEquals(List.of(ShareContentType.DEFAULT), scans);
+        selectType(ShareContentType.IMAGE);
+        selectType(ShareContentType.DEFAULT);
+        selectType(ShareContentType.IMAGE);
+        assertEquals(List.of(ShareContentType.DEFAULT, ShareContentType.IMAGE), scans);
+        moreAction("重新扫描");
+        selectType(ShareContentType.DEFAULT);
+        assertEquals(List.of(ShareContentType.DEFAULT, ShareContentType.IMAGE,
+                ShareContentType.IMAGE, ShareContentType.DEFAULT), scans);
+        assertFalse(byText(root(), "保存").isEnabled());
+    }
+
+    @Test public void closingBeforeQueuedScanStartsSkipsCatalogWork() {
+        AtomicReference<Runnable> worker = new AtomicReference<>();
+        java.util.List<ShareContentType> scans = new java.util.ArrayList<>();
+        new ShareTargetsEditor(activity, worker::set, (context, type) -> {
+            scans.add(type);
+            return List.of(target(FRIEND, "微信好友"));
+        }).show();
+        captureDialog();
+        dialog.dismiss();
+        Shadows.shadowOf(Looper.getMainLooper()).idle();
+        worker.get().run();
+        assertTrue(scans.isEmpty());
+    }
+
+    @Test public void failedTypeLoadAllowsReturningToPreviousDraftWithoutLosingEdits() {
+        new ShareTargetsEditor(activity, Runnable::run, (context, type) -> {
+            if (type == ShareContentType.IMAGE) throw new IllegalStateException("scan failed");
+            return List.of(target(FRIEND, "微信好友"), target(MOMENTS, "朋友圈"));
+        }).show();
+        captureDialog();
+        targetAction(1, "隐藏此入口");
+        selectType(ShareContentType.PDF);
+        selectType(ShareContentType.IMAGE);
+        assertFalse(byText(root(), "保存").isEnabled());
+        selectType(ShareContentType.PDF);
+        assertTrue(byText(root(), "单独设置此类型").isEnabled());
+        selectType(ShareContentType.DEFAULT);
+        assertEquals(1, grid().getCount());
+        byText(root(), "保存").performClick();
+        assertEquals(MOMENTS, activity.prefs().getString(SettingsStore.KEY_SHARE_HIDDEN_TARGETS, ""));
+    }
+
     @Test public void unchangedEditorDoesNotSaveAndReturnsWithoutPrompt() {
         open();
         assertFalse(byText(root(), "保存").isEnabled());

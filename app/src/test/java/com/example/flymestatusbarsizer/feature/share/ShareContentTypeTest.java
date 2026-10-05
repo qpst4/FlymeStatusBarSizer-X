@@ -33,6 +33,8 @@ import java.util.List;
 @Config(sdk = 28, manifest = Config.NONE)
 @ConscryptMode(ConscryptMode.Mode.OFF)
 public class ShareContentTypeTest {
+    private int typeQueries;
+    private int nameQueries;
     private final Uri image = Uri.parse("content://share-test/image");
     private final Uri video = Uri.parse("content://share-test/video");
     private final Uri pdf = Uri.parse("content://share-test/pdf");
@@ -44,6 +46,7 @@ public class ShareContentTypeTest {
         ShadowContentResolver.registerProviderInternal("share-test", new ContentProvider() {
             @Override public boolean onCreate() { return true; }
             @Override public String getType(Uri uri) {
+                typeQueries++;
                 if (uri.equals(image)) return "image/jpeg";
                 if (uri.equals(video)) return "video/mp4";
                 if (uri.equals(pdf)) return "application/pdf";
@@ -53,6 +56,7 @@ public class ShareContentTypeTest {
             }
             @Override public Cursor query(Uri uri, String[] projection, String selection,
                     String[] args, String order) {
+                nameQueries++;
                 if (uri.equals(denied)) throw new SecurityException("Not granted yet");
                 MatrixCursor result = new MatrixCursor(new String[]{OpenableColumns.DISPLAY_NAME});
                 if (uri.equals(opaquePdf)) result.addRow(new Object[]{"分享文档.PDF"});
@@ -62,6 +66,83 @@ public class ShareContentTypeTest {
             @Override public int delete(Uri uri, String selection, String[] args) { return 0; }
             @Override public int update(Uri uri, ContentValues values, String selection, String[] args) { return 0; }
         });
+    }
+
+    @Test public void defaultOnlyRulesDoNotQueryProvidersAndNewProfilesTakeEffectImmediately() {
+        Activity activity = Robolectric.buildActivity(Activity.class).get();
+        activity.setIntent(send("*/*", opaquePdf));
+        ModuleConfig config = new ModuleConfig();
+        assertSame(config.shareTargetRules, ShareTargetsHooks.rulesFor(config, activity));
+        assertEquals(0, typeQueries);
+        assertEquals(0, nameQueries);
+        ShareTargetRules pdfRules = ShareTargetRules.parse("", "pkg/.Pdf");
+        config.shareTargetProfiles.set(ShareContentType.PDF, pdfRules);
+        assertSame(pdfRules, ShareTargetsHooks.rulesFor(config, activity));
+        assertEquals(1, typeQueries);
+        assertEquals(1, nameQueries);
+        ShareTargetRules updated = ShareTargetRules.parse("pkg/.Pdf", "");
+        config.shareTargetProfiles.set(ShareContentType.PDF, updated);
+        assertSame(updated, ShareTargetsHooks.rulesFor(config, activity));
+        assertEquals(1, typeQueries);
+        assertEquals(1, nameQueries);
+    }
+
+    @Test public void repeatedShareReusesMetadataButNewIntentAndMutatedSelectionDoNot() {
+        Activity activity = Robolectric.buildActivity(Activity.class).get();
+        ShareContentType.Cache cache = new ShareContentType.Cache();
+        Intent payload = send("*/*", opaquePdf);
+        Intent wrapper = Intent.createChooser(payload, "Share");
+        assertEquals(ShareContentType.PDF, ShareContentType.resolve(activity, wrapper, cache));
+        assertEquals(ShareContentType.PDF, ShareContentType.resolve(activity, wrapper, cache));
+        assertEquals(1, typeQueries);
+        assertEquals(1, nameQueries);
+        payload.putExtra(Intent.EXTRA_STREAM, image);
+        assertEquals(ShareContentType.IMAGE, ShareContentType.resolve(activity, wrapper, cache));
+        assertEquals(2, typeQueries);
+        assertEquals(ShareContentType.IMAGE, ShareContentType.resolve(activity, send("*/*", image), cache));
+        assertEquals(3, typeQueries);
+    }
+
+    @Test public void cachedClassificationTracksInPlaceStreamAndClipChanges() {
+        Activity activity = Robolectric.buildActivity(Activity.class).get();
+        ShareContentType.Cache cache = new ShareContentType.Cache();
+        ArrayList<Uri> streams = new ArrayList<>(List.of(image));
+        Intent payload = new Intent(Intent.ACTION_SEND_MULTIPLE).setType("*/*")
+                .putParcelableArrayListExtra(Intent.EXTRA_STREAM, streams);
+        assertEquals(ShareContentType.IMAGE, ShareContentType.resolve(activity, payload, cache));
+        streams.add(video);
+        assertEquals(ShareContentType.DEFAULT, ShareContentType.resolve(activity, payload, cache));
+        streams.clear();
+        streams.add(opaquePdf);
+        assertEquals(ShareContentType.PDF, ShareContentType.resolve(activity, payload, cache));
+
+        payload.removeExtra(Intent.EXTRA_STREAM);
+        ClipData clip = new ClipData("share", new String[]{"*/*"}, new ClipData.Item(image));
+        payload.setClipData(clip);
+        assertEquals(ShareContentType.IMAGE, ShareContentType.resolve(activity, payload, cache));
+        clip.addItem(new ClipData.Item(video));
+        assertEquals(ShareContentType.DEFAULT, ShareContentType.resolve(activity, payload, cache));
+    }
+
+    @Test public void unknownProviderResultsAreRetried() {
+        Activity activity = Robolectric.buildActivity(Activity.class).get();
+        ShareContentType.Cache cache = new ShareContentType.Cache();
+        Intent payload = send("*/*", denied);
+        assertEquals(ShareContentType.DEFAULT, ShareContentType.resolve(activity, payload, cache));
+        assertEquals(ShareContentType.DEFAULT, ShareContentType.resolve(activity, payload, cache));
+        assertEquals(2, typeQueries);
+        assertEquals(2, nameQueries);
+    }
+
+    @Test public void clipFallbackAfterProviderFailureDoesNotPreventRetry() {
+        Activity activity = Robolectric.buildActivity(Activity.class).get();
+        ShareContentType.Cache cache = new ShareContentType.Cache();
+        Intent payload = send("*/*", denied);
+        payload.setClipData(new ClipData("share", new String[]{"image/jpeg"}, new ClipData.Item(denied)));
+        assertEquals(ShareContentType.IMAGE, ShareContentType.resolve(activity, payload, cache));
+        assertEquals(ShareContentType.IMAGE, ShareContentType.resolve(activity, payload, cache));
+        assertEquals(2, typeQueries);
+        assertEquals(2, nameQueries);
     }
 
     @Test public void genericFileMimesSelectEveryMediaProfileAtRuntime() {
