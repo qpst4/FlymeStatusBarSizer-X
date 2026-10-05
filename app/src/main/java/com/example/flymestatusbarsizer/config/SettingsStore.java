@@ -112,6 +112,11 @@ public final class SettingsStore {
             "clock_detail_assistant_action_cache_json";
     public static final String KEY_MBACK_LONG_TOUCH_URL_ENABLED = "mback_long_touch_url_enabled";
     public static final String KEY_ASSISTANT_GESTURE_ENABLED = "assistant_gesture_enabled";
+    public static final String KEY_ASSISTANT_GESTURE_SIDE = "assistant_gesture_side";
+    public static final int ASSISTANT_GESTURE_SIDE_LEFT = 0;
+    public static final int ASSISTANT_GESTURE_SIDE_RIGHT = 1;
+    public static final int ASSISTANT_GESTURE_SIDE_BOTH = 2;
+    public static final int DEFAULT_ASSISTANT_GESTURE_SIDE = ASSISTANT_GESTURE_SIDE_LEFT;
     public static final String KEY_ASSISTANT_GESTURE_DISTANCE_DP = "assistant_gesture_distance_dp";
     public static final String KEY_ASSISTANT_GESTURE_HOLD_MS = "assistant_gesture_hold_ms";
     public static final boolean DEFAULT_ASSISTANT_GESTURE_ENABLED = false;
@@ -538,6 +543,7 @@ public final class SettingsStore {
     public static final int DEFAULT_TELEPHONY_DEBUG_SLOT2_NETWORK_PROFILE = TELEPHONY_DEBUG_NETWORK_PROFILE_4G;
     public static final int DEFAULT_TELEPHONY_DEBUG_SLOT2_SIGNAL_LEVEL = 2;
     public static final String[] INT_KEYS = {
+            KEY_ASSISTANT_GESTURE_SIDE,
             KEY_ASSISTANT_GESTURE_DISTANCE_DP,
             KEY_ASSISTANT_GESTURE_HOLD_MS,
             CircleBatteryAnimationConfig.NORMAL,
@@ -928,6 +934,7 @@ public final class SettingsStore {
     public static int defaultInt(String key) {
         if (CircleBatteryAnimationConfig.isKey(key)) return CircleBatteryAnimationConfig.defaultInt(key);
         switch (key) {
+            case KEY_ASSISTANT_GESTURE_SIDE: return DEFAULT_ASSISTANT_GESTURE_SIDE;
             case KEY_ASSISTANT_GESTURE_DISTANCE_DP: return DEFAULT_ASSISTANT_GESTURE_DISTANCE_DP;
             case KEY_ASSISTANT_GESTURE_HOLD_MS: return DEFAULT_ASSISTANT_GESTURE_HOLD_MS;
             case KEY_POSITION_OFFSET_STORAGE_VERSION:
@@ -1310,6 +1317,17 @@ public final class SettingsStore {
             return DEFAULT_IME_CONTROL_BAR_BUTTON_SLOTS;
         }
         return "";
+    }
+
+    public static int normalizeAssistantGestureSide(int value) {
+        return value == ASSISTANT_GESTURE_SIDE_RIGHT || value == ASSISTANT_GESTURE_SIDE_BOTH
+                ? value : DEFAULT_ASSISTANT_GESTURE_SIDE;
+    }
+
+    public static boolean assistantGestureAllowsSide(int side, boolean leftEdge) {
+        side = normalizeAssistantGestureSide(side);
+        return side == ASSISTANT_GESTURE_SIDE_BOTH
+                || side == (leftEdge ? ASSISTANT_GESTURE_SIDE_LEFT : ASSISTANT_GESTURE_SIDE_RIGHT);
     }
 
     public static int normalizeBatteryStyle(int value) {

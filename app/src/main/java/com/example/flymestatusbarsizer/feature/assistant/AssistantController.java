@@ -74,7 +74,8 @@ final class AssistantController implements ComponentCallbacks {
                     main.post(() -> register(callback));
                 } else if (code == AssistantProtocol.SHOW) {
                     long id = data.readLong();
-                    main.post(() -> show(id));
+                    boolean fromLeft = data.dataAvail() < 4 || data.readInt() != 1;
+                    main.post(() -> show(id, fromLeft));
                 } else main.post(() -> restore(true));
                 return true;
             }
@@ -177,7 +178,7 @@ final class AssistantController implements ComponentCallbacks {
         } catch (Throwable t) { restore(true); }
     }
 
-    private void show(long id) {
+    private void show(long id, boolean fromLeft) {
         IBinder requester = client;
         if (requester == null) return;
         if (!ready()) { result(requester, id, false); publishState(); return; }
@@ -190,7 +191,7 @@ final class AssistantController implements ComponentCallbacks {
             if (!"CREATED".equals(lifecycle) && !"STARTED".equals(lifecycle) && !"RESUMED".equals(lifecycle))
                 throw new IllegalStateException("Launcher component is not active: " + lifecycle);
             installCallbackHooks(c);
-            AssistantWindowSession current = new AssistantWindowSession(c);
+            AssistantWindowSession current = new AssistantWindowSession(c, fromLeft);
             session = current;
             publishState();
             current.attach();

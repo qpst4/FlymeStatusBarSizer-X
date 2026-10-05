@@ -120,6 +120,7 @@ public final class ModuleConfig {
             SettingsStore.DEFAULT_CLOCK_DETAIL_ASSISTANT_ACTION_CACHE_JSON;
     public boolean mbackLongTouchIntentEnabled = SettingsStore.DEFAULT_MBACK_LONG_TOUCH_URL_ENABLED;
     public boolean assistantGestureEnabled = SettingsStore.DEFAULT_ASSISTANT_GESTURE_ENABLED;
+    public int assistantGestureSide = SettingsStore.DEFAULT_ASSISTANT_GESTURE_SIDE;
     public int assistantGestureDistanceDp = SettingsStore.DEFAULT_ASSISTANT_GESTURE_DISTANCE_DP;
     public int assistantGestureHoldMs = SettingsStore.DEFAULT_ASSISTANT_GESTURE_HOLD_MS;
     public int mbackLongTouchAction = SettingsStore.DEFAULT_MBACK_LONG_TOUCH_ACTION;
@@ -669,6 +670,8 @@ public final class ModuleConfig {
                     SettingsStore.DEFAULT_MBACK_LONG_TOUCH_URL_ENABLED);
             config.assistantGestureEnabled = SettingsStore.readBoolean(prefs,
                     SettingsStore.KEY_ASSISTANT_GESTURE_ENABLED, SettingsStore.DEFAULT_ASSISTANT_GESTURE_ENABLED);
+            config.assistantGestureSide = SettingsStore.normalizeAssistantGestureSide(SettingsStore.readInt(prefs,
+                    SettingsStore.KEY_ASSISTANT_GESTURE_SIDE, SettingsStore.DEFAULT_ASSISTANT_GESTURE_SIDE));
             config.assistantGestureDistanceDp = Math.max(40, Math.min(240, SettingsStore.readInt(prefs,
                     SettingsStore.KEY_ASSISTANT_GESTURE_DISTANCE_DP, SettingsStore.DEFAULT_ASSISTANT_GESTURE_DISTANCE_DP)));
             config.assistantGestureHoldMs = Math.max(250, Math.min(2000, SettingsStore.readInt(prefs,

@@ -30,6 +30,7 @@ final class AssistantWindowSession {
     final WindowManager.LayoutParams originalAttrs = new WindowManager.LayoutParams();
     final Object originalWindowManager, originalToken, originalAppName, originalBackgroundState;
     final AssistantWindowBackground background;
+    final AssistantPanelMotion motion;
     final boolean dark;
     final int originalVisibility, originalSystemUi;
     final Field componentManager, added, windowManager, appToken, appName;
@@ -38,7 +39,7 @@ final class AssistantWindowSession {
     volatile boolean suppressCallbacks = true;
     boolean restoring, moved, lifecycleChanged;
 
-    AssistantWindowSession(Object component) throws ReflectiveOperationException {
+    AssistantWindowSession(Object component, boolean fromLeft) throws ReflectiveOperationException {
         this.component = component;
         window = (Window) AssistantReflection.get(component, "mWindow");
         decor = (View) AssistantReflection.get(component, "mDecorView");
@@ -76,6 +77,7 @@ final class AssistantWindowSession {
                 & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
         View slidingContent = (View) AssistantReflection.get(panel, "mContentView");
         if (slidingContent == null) throw new IllegalStateException("Assistant sliding content is not ready");
+        motion = new AssistantPanelMotion((View) panel, slidingContent, fromLeft);
         background = new AssistantWindowBackground(slidingContent,
                 windowContext.getResources().getDisplayMetrics().density);
     }
@@ -92,6 +94,7 @@ final class AssistantWindowSession {
         attrs.flags &= ~WindowManager.LayoutParams.FLAG_FULLSCREEN;
         setWindowManager.invoke(window, overlayManager, null, TITLE, true);
         componentManager.set(component, window.getWindowManager());
+        motion.positionChanged();
         background.apply();
         applyIdentityAndAttributes(window, attrs);
         decor.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE
@@ -135,6 +138,7 @@ final class AssistantWindowSession {
         restoring = true;
         if (!moved) return;
         try {
+            try { motion.dispose(); } catch (Throwable t) { AssistantHooks.warn("Resetting assistant motion", t); }
             // onPanelClosed can be called again here; the owner ignores it while restoring.
             try { close.invoke(component, 0); } catch (Throwable t) { AssistantHooks.warn("Closing assistant panel", t); }
             if (lifecycleChanged) { pause.invoke(component); stop.invoke(component); }

@@ -6,8 +6,10 @@ final class AssistantGestureState {
     private boolean claimed;
     private float startX, startY, dx, dy, distance, backwardLimit;
     private long deadline;
+    private int inwardDirection;
 
-    void begin(float x, float y, long downTime, float distance, long duration, float backwardLimit) {
+    void begin(float x, float y, long downTime, float distance, long duration, float backwardLimit, boolean leftEdge) {
+        inwardDirection = leftEdge ? 1 : -1;
         tracking = true;
         claimed = false;
         startX = x;
@@ -19,7 +21,7 @@ final class AssistantGestureState {
     }
 
     void move(float x, float y, int pointerCount) {
-        dx = x - startX;
+        dx = (x - startX) * inwardDirection;
         dy = y - startY;
         if (pointerCount != 1 || !Float.isFinite(dx) || !Float.isFinite(dy)
                 || dx < -backwardLimit) cancel();

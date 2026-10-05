@@ -66,14 +66,14 @@ final class AssistantClient {
         return ready && binder != null && binder.isBinderAlive();
     }
 
-    void show(Runnable onSuccess) {
+    void show(boolean fromLeft, Runnable onSuccess) {
         ready = false;
         main.post(() -> {
             long id = ++request;
             success = onSuccess;
             try {
                 if (!AssistantProtocol.send(remote, AssistantProtocol.DESCRIPTOR, AssistantProtocol.SHOW,
-                        data -> data.writeLong(id))) failed(id);
+                        data -> { data.writeLong(id); data.writeInt(fromLeft ? 0 : 1); })) failed(id);
             } catch (Throwable t) { AssistantHooks.warn("Assistant request failed", t); failed(id); }
             main.postDelayed(() -> { if (request == id && success != null) failed(id); }, 3000);
         });

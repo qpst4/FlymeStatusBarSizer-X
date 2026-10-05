@@ -12,6 +12,7 @@ import android.view.View;
 
 import com.example.flymestatusbarsizer.FlymeStatusBarSizer;
 import com.example.flymestatusbarsizer.config.ModuleConfig;
+import com.example.flymestatusbarsizer.config.SettingsStore;
 import com.example.flymestatusbarsizer.util.ReflectUtils;
 
 import java.lang.ref.WeakReference;
@@ -88,6 +89,7 @@ final class AssistantGestureHooks {
         final Runnable timeout = this::tryClaim;
         MotionEvent last;
         boolean consumed;
+        boolean fromLeft;
 
         Gesture(Object owner, Context context, Method cancel, Method pilfer) {
             this.owner = new WeakReference<>(owner);
@@ -100,18 +102,20 @@ final class AssistantGestureHooks {
         void begin(MotionEvent event) {
             Object target = owner.get();
             ModuleConfig config = ModuleConfig.load(context);
+            boolean leftEdge = ReflectUtils.getBooleanField(target, "mIsOnLeftEdge", false);
             if (!config.enabled || !config.assistantGestureEnabled || !client.isReady()
                     || !event.isFromSource(InputDevice.SOURCE_TOUCHSCREEN) || event.getPointerCount() != 1
                     || ReflectUtils.invokeNoArgInt(event, "getDisplayId", -1)
                             != ReflectUtils.getIntField(target, "mDisplayId", 0)
                     || ReflectUtils.getIntField(target, "mDisplayId", 0) != 0
                     || !ReflectUtils.getBooleanField(target, "mAllowGesture", false)
-                    || !ReflectUtils.getBooleanField(target, "mIsOnLeftEdge", false)
+                    || !SettingsStore.assistantGestureAllowsSide(config.assistantGestureSide, leftEdge)
                     || ReflectUtils.getBooleanField(target, "mIsTrackpadThreeFingerSwipe", false)
                     || ReflectUtils.getBooleanField(target, "mInterceptBack", false) || locked()) return;
             float density = context.getResources().getDisplayMetrics().density;
             state.begin(event.getX(), event.getY(), event.getDownTime(),
-                    config.assistantGestureDistanceDp * density, config.assistantGestureHoldMs, 12f * density);
+                    config.assistantGestureDistanceDp * density, config.assistantGestureHoldMs, 12f * density, leftEdge);
+            fromLeft = leftEdge;
             remember(event);
             handler.postAtTime(timeout, state.deadline());
         }
@@ -136,7 +140,7 @@ final class AssistantGestureHooks {
                 consumed = true;
                 handler.removeCallbacks(timeout);
                 Object panel = ReflectUtils.getField(target, "mEdgeBackPlugin");
-                client.show(() -> {
+                client.show(fromLeft, () -> {
                     if (panel instanceof View) ((View) panel).post(() -> ((View) panel).performHapticFeedback(
                             HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING));
                 });

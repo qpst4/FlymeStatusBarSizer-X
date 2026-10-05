@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.os.Message;
 import android.util.Log;
+import android.view.MotionEvent;
 import android.view.WindowManager;
 
 import com.example.flymestatusbarsizer.FlymeStatusBarSizer;
@@ -83,9 +84,44 @@ public final class AssistantHooks {
             });
             module.intercept(AssistantReflection.method(panel, "onPanelOpened"), chain -> {
                 Object result = chain.proceed();
+                AssistantWindowSession current = activePanel(chain.getThisObject());
+                if (current != null) current.motion.opened();
                 if (controller != null) controller.publishState();
                 return result;
             });
+            for (Method method : new Method[]{
+                    AssistantReflection.method(panel, "setPanelX", int.class),
+                    AssistantReflection.method(panel, "onLayout", boolean.class,
+                            int.class, int.class, int.class, int.class)}) {
+                module.intercept(method, chain -> {
+                    Object result = chain.proceed();
+                    AssistantWindowSession current = activePanel(chain.getThisObject());
+                    if (current != null) current.motion.positionChanged();
+                    return result;
+                });
+            }
+            for (Class<?> argument : new Class<?>[]{int.class, float.class}) {
+                module.intercept(AssistantReflection.method(panel, "closePanel", argument), chain -> {
+                    AssistantWindowSession current = activePanel(chain.getThisObject());
+                    if (current != null) current.motion.prepareClose();
+                    return chain.proceed();
+                });
+            }
+            for (String name : new String[]{"onInterceptTouchEvent", "onTouchEvent"}) {
+                boolean intercept = name.equals("onInterceptTouchEvent");
+                module.intercept(AssistantReflection.method(panel, name, MotionEvent.class), chain -> {
+                    AssistantWindowSession current = activePanel(chain.getThisObject());
+                    if (current == null) return chain.proceed();
+                    try {
+                        MotionEvent event = (MotionEvent) chain.getArg(0);
+                        return intercept ? current.motion.intercept(event) : current.motion.touch(event);
+                    } catch (Throwable t) {
+                        warn("Cannot handle assistant panel swipe", t);
+                        controller.restore(true);
+                        return true;
+                    }
+                });
+            }
             for (Method method : wrapper.getDeclaredMethods()) {
                 if (!"startActivity".equals(method.getName())) continue;
                 method.setAccessible(true);
@@ -110,5 +146,10 @@ public final class AssistantHooks {
     static AssistantWindowSession currentSession() {
         AssistantController value = controller;
         return value == null ? null : value.session;
+    }
+
+    private static AssistantWindowSession activePanel(Object panel) {
+        AssistantWindowSession current = currentSession();
+        return current != null && !current.restoring && current.panel == panel ? current : null;
     }
 }

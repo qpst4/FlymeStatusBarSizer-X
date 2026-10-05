@@ -370,18 +370,24 @@ public final class SettingsCardFactory {
     public View createAssistantGestureSettingsCard() {
         AssistantGesturePreviewLayout page = new AssistantGesturePreviewLayout(
                 activity, activity.prefs(), activity.primaryColor());
-        activity.addSwitchRow(page, "左侧长滑打开负一屏",
-                "从屏幕左侧向内滑动并按住，距离和时间都达到阈值时打开负一屏。关闭后回到原应用。",
+        activity.addSwitchRow(page, "侧边长滑打开负一屏",
+                "从所选屏幕侧边向内滑动并按住，距离和时间都达到阈值时从该侧打开负一屏。面板可左右滑动退出，直接返回默认向左退出。",
                 SettingsStore.KEY_ASSISTANT_GESTURE_ENABLED, SettingsStore.DEFAULT_ASSISTANT_GESTURE_ENABLED);
         activity.addDivider(page);
-        activity.addSliderRow(page, "滑动距离", "从起手位置向右移动的最短距离；达到或超过都有效，没有水平距离上限。",
+        activity.addChoiceRow(page, "触发侧边", "选择哪一侧的返回手势可以打开负一屏。",
+                SettingsStore.KEY_ASSISTANT_GESTURE_SIDE, SettingsStore.DEFAULT_ASSISTANT_GESTURE_SIDE,
+                new int[]{SettingsStore.ASSISTANT_GESTURE_SIDE_LEFT,
+                        SettingsStore.ASSISTANT_GESTURE_SIDE_RIGHT, SettingsStore.ASSISTANT_GESTURE_SIDE_BOTH},
+                new String[]{"左侧", "右侧", "两侧"});
+        activity.addDivider(page);
+        activity.addSliderRow(page, "滑动距离", "从起手位置向屏幕内侧移动的最短距离；达到或超过都有效，没有水平距离上限。",
                 SettingsStore.KEY_ASSISTANT_GESTURE_DISTANCE_DP, SettingsStore.DEFAULT_ASSISTANT_GESTURE_DISTANCE_DP,
                 40, 240, "dp");
         activity.addActionButtonRow(page, "屏幕距离标识",
-                "以屏幕左边缘为起点，竖线标出当前最短滑动距离；超过仍有效，还需满足按住时间。",
+                "按所选侧边显示标识，两侧模式同时显示左右标线；竖线标出当前最短滑动距离；超过仍有效，还需满足按住时间。",
                 "显示标识", page::showPreview);
         TextView previewHint = new TextView(activity);
-        previewHint.setText("调节距离时自动显示屏幕标线，5 秒后消失；离开页面或收起此项立即隐藏。");
+        previewHint.setText("切换触发侧边或调节距离时自动显示屏幕标线，5 秒后消失；离开页面或收起此项立即隐藏。");
         previewHint.setTextColor(activity.subtextColor());
         previewHint.setTextSize(13);
         previewHint.setPadding(0, activity.dp(8), 0, activity.dp(12));
@@ -391,7 +397,7 @@ public final class SettingsCardFactory {
                 250, 2000, "ms");
         activity.addProfileSectionHeader(page, "首次启用",
                 "在 LSPosed 中勾选系统界面和 Aicy 纵览（com.meizu.assistant），重启手机，并先从桌面打开一次负一屏。遵循系统返回手势区域，锁屏时不触发。未达到阈值时正常返回。");
-        return activity.buildSectionCard("全局负一屏", "左侧长滑返回，在当前应用上打开 Aicy 纵览。", page);
+        return activity.buildSectionCard("全局负一屏", "支持左侧、右侧或两侧长滑返回，在当前应用上打开 Aicy 纵览。", page);
     }
 
     public View createShareTargetsSettingsCard() {
