@@ -4,6 +4,7 @@ import com.example.flymestatusbarsizer.feature.share.ShareTargetRules;
 import com.example.flymestatusbarsizer.feature.share.ShareTargetProfiles;
 
 import com.example.flymestatusbarsizer.feature.battery.CircleBatteryAnimationConfig;
+import com.example.flymestatusbarsizer.feature.statusbar.StatusBarIconVisibility;
 import com.example.flymestatusbarsizer.feature.wifi.WifiIconStyles;
 
 import android.content.Context;
@@ -13,6 +14,9 @@ import android.os.Looper;
 import android.util.Log;
 
 import io.github.libxposed.api.XposedModule;
+
+import java.util.Collections;
+import java.util.Set;
 
 public final class ModuleConfig {
     private static final String TAG = "FlymeStatusBarSizer";
@@ -30,6 +34,7 @@ public final class ModuleConfig {
     private static final Runnable CONFIG_CHANGE_DISPATCH_RUNNABLE = ModuleConfig::notifyConfigChanged;
 
     public boolean enabled = SettingsStore.DEFAULT_ENABLED;
+    public Set<String> hiddenStatusBarSlots = Collections.emptySet();
     public boolean shareTargetsEnabled = SettingsStore.DEFAULT_SHARE_TARGETS_ENABLED;
     public ShareTargetProfiles shareTargetProfiles = new ShareTargetProfiles();
     public ShareTargetRules shareTargetRules = ShareTargetRules.EMPTY;
@@ -407,6 +412,8 @@ public final class ModuleConfig {
                     SettingsStore.readString(prefs, SettingsStore.KEY_SHARE_TARGET_ORDER, ""),
                     SettingsStore.readString(prefs, SettingsStore.KEY_SHARE_HIDDEN_TARGETS, ""));
             config.enabled = SettingsStore.readBoolean(prefs, SettingsStore.KEY_ENABLED, SettingsStore.DEFAULT_ENABLED);
+            config.hiddenStatusBarSlots = StatusBarIconVisibility.readHiddenSlots(
+                    key -> SettingsStore.readBoolean(prefs, key, false));
             config.statusBarTintEnabled = SettingsStore.readBoolean(prefs,
                     SettingsStore.KEY_STATUS_BAR_TINT_ENABLED, SettingsStore.DEFAULT_STATUS_BAR_TINT_ENABLED);
             for (int i = 0; i < config.statusBarTintModes.length; i++) {

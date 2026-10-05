@@ -2,6 +2,7 @@ package com.example.flymestatusbarsizer.config;
 
 import com.example.flymestatusbarsizer.feature.battery.CircleBatteryAnimationConfig;
 import com.example.flymestatusbarsizer.feature.clock.ClockDetailActionCodec;
+import com.example.flymestatusbarsizer.feature.statusbar.StatusBarIconVisibility;
 import com.example.flymestatusbarsizer.feature.wifi.WifiIconStyles;
 
 import android.content.Context;
@@ -665,7 +666,7 @@ public final class SettingsStore {
             KEY_TELEPHONY_DEBUG_SLOT2_SIGNAL_LEVEL
     };
 
-    public static final String[] BOOLEAN_KEYS = {
+    public static final String[] BOOLEAN_KEYS = StatusBarIconVisibility.appendPreferenceKeys(new String[]{
             KEY_SHARE_TARGETS_ENABLED,
             KEY_ASSISTANT_GESTURE_ENABLED,
             CircleBatteryAnimationConfig.ENABLED,
@@ -727,7 +728,7 @@ public final class SettingsStore {
             KEY_ONEMIND_PERF_DISABLE_ENABLED,
             KEY_MZ_SAFE_BACKGROUND_OPTIMIZATION_ENABLED,
             KEY_ONEMIND_LOGCAT_ENABLED
-    };
+    });
 
     public static final String[] STRING_KEYS = {
             KEY_SHARE_TARGET_PROFILES,
