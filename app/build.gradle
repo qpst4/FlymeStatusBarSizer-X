@@ -46,7 +46,7 @@ signingConfigs {
     // 2. 配置构建类型，将签名应用到 release
     buildTypes {
         release {
-            minifyEnabled false
+            minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             
             // 引用上方定义的 signingConfigs.release
@@ -84,7 +84,6 @@ androidComponents {
 dependencies {
     testImplementation "junit:junit:4.13.2"
     testImplementation "org.robolectric:robolectric:4.16.1"
-    implementation "androidx.dynamicanimation:dynamicanimation:1.0.0"
     implementation "io.github.libxposed:service:101.0.0"
     implementation "org.lsposed.hiddenapibypass:hiddenapibypass:6.1"
     compileOnly "io.github.libxposed:api:101.0.1"
