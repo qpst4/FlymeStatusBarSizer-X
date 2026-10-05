@@ -28,19 +28,37 @@ public class AssistantWindowIdentityTest {
         original.copyFrom(window.getAttributes());
         WindowManager.LayoutParams overlay = new WindowManager.LayoutParams();
         overlay.copyFrom(original);
-        overlay.token = null;
-        overlay.packageName = AssistantProtocol.PACKAGE;
-        overlay.type = 2038;
+        AssistantWindowSession.applyHostAttributes(overlay);
         window.setAttributes(overlay);
         assertSame(launcherToken, window.getAttributes().token);
         AssistantWindowSession.applyIdentityAndAttributes(window, overlay);
         assertNull(window.getAttributes().token);
         assertEquals(AssistantProtocol.PACKAGE, window.getAttributes().packageName);
-        assertEquals(2038, window.getAttributes().type);
+        assertEquals(2017, window.getAttributes().type);
+        assertEquals(AssistantWindowSession.WINDOW_TYPE, window.getAttributes().type);
         AssistantWindowSession.applyIdentityAndAttributes(window, original);
         assertSame(launcherToken, window.getAttributes().token);
         assertEquals("com.meizu.flyme.launcher", window.getAttributes().packageName);
         assertEquals(4, window.getAttributes().type);
+    }
+
+    @Test public void nativeAttributeUpdatesKeepGlobalHostAboveShadeAndFocusable() {
+        WindowManager.LayoutParams attrs = new WindowManager.LayoutParams();
+        // The native component may submit its desktop identity and non-focusable flags again.
+        for (int i = 0; i < 2; i++) {
+            attrs.type = 4;
+            attrs.token = new Binder();
+            attrs.packageName = "com.meizu.flyme.launcher";
+            attrs.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                    | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED;
+            AssistantWindowSession.applyHostAttributes(attrs);
+            assertEquals(2017, attrs.type);
+            assertNull(attrs.token);
+            assertEquals(AssistantProtocol.PACKAGE, attrs.packageName);
+            assertEquals(AssistantWindowSession.TITLE, attrs.getTitle());
+            assertEquals(0, attrs.flags & WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE);
+            assertNotEquals(0, attrs.flags & WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED);
+        }
     }
 
     @Test public void gestureSettingsParticipateInRemoteSyncAndBackupDefaults() {

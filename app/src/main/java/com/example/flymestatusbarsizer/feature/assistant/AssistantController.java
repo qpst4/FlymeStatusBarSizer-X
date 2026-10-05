@@ -185,14 +185,10 @@ final class AssistantController implements ComponentCallbacks {
         try {
             Task task = topTask();
             String lifecycle = AssistantWindowSession.lifecycle(c);
-            if (task != null && "com.meizu.flyme.launcher".equals(task.packageName)
-                    && "RESUMED".equals(lifecycle)) {
-                AssistantReflection.callInt(c, "openOverlay", 1);
-                result(requester, id, true);
-                publishState();
-                return;
-            }
-            if (!"CREATED".equals(lifecycle)) throw new IllegalStateException("Launcher is transitioning");
+            // Even with Launcher underneath, its type-4 window cannot cover an expanded shade.
+            // Always use the independent host and restore the captured lifecycle on close.
+            if (!"CREATED".equals(lifecycle) && !"STARTED".equals(lifecycle) && !"RESUMED".equals(lifecycle))
+                throw new IllegalStateException("Launcher component is not active: " + lifecycle);
             installCallbackHooks(c);
             AssistantWindowSession current = new AssistantWindowSession(c);
             session = current;
@@ -329,8 +325,7 @@ final class AssistantController implements ComponentCallbacks {
     private static final class Task {
         final int id;
         final ComponentName activity;
-        final String packageName;
-        Task(int id, ComponentName activity) { this.id = id; this.activity = activity; packageName = activity.getPackageName(); }
+        Task(int id, ComponentName activity) { this.id = id; this.activity = activity; }
         boolean same(Task other) { return id == other.id && activity.equals(other.activity); }
     }
 }

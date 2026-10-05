@@ -15,6 +15,10 @@ import java.lang.reflect.Method;
 /** A single existing card component temporarily changes window host. Main thread only. */
 final class AssistantWindowSession {
     static final String TITLE = "FlymeStatusBarSizer:Assistant";
+    // Hidden TYPE_STATUS_BAR_SUB_PANEL, also used by Flyme's SystemUIDialog.
+    // Unlike TYPE_APPLICATION_OVERLAY, this is above the notification/control-center shade.
+    // Aicy runs as android.uid.system; WindowManager enforces STATUS_BAR_SERVICE permission.
+    static final int WINDOW_TYPE = 2017;
     final Object component;
     final Object panel;
     final Object callback;
@@ -66,7 +70,7 @@ final class AssistantWindowSession {
                 WindowManager.class, IBinder.class, String.class, boolean.class);
         Context context = (Context) component;
         windowContext = context.getApplicationContext().createDisplayContext(originalManager.getDefaultDisplay())
-                .createWindowContext(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, null);
+                .createWindowContext(WINDOW_TYPE, null);
         overlayManager = windowContext.getSystemService(WindowManager.class);
         dark = (windowContext.getResources().getConfiguration().uiMode
                 & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
@@ -97,24 +101,28 @@ final class AssistantWindowSession {
         currentManager().addView(decor, window.getAttributes());
         added.setBoolean(component, true);
         lifecycleChanged = true;
-        start.invoke(component);
-        resume.invoke(component);
+        if ("CREATED".equals(restoreLifecycle)) start.invoke(component);
+        if (!"RESUMED".equals(restoreLifecycle)) resume.invoke(component);
     }
 
     void open() throws ReflectiveOperationException { open.invoke(component, 1); }
 
     void updateAttributes(WindowManager.LayoutParams attrs) {
         Rect bounds = overlayManager.getCurrentWindowMetrics().getBounds();
-        attrs.type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
-        attrs.packageName = AssistantProtocol.PACKAGE;
-        attrs.token = null;
-        attrs.setTitle(TITLE);
+        applyHostAttributes(attrs);
         attrs.x = attrs.y = 0;
         attrs.width = bounds.width();
         attrs.height = bounds.height();
         attrs.gravity = Gravity.TOP | Gravity.LEFT;
-        attrs.flags &= ~WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
         background.updateAttributes(attrs);
+    }
+
+    static void applyHostAttributes(WindowManager.LayoutParams attrs) {
+        attrs.type = WINDOW_TYPE;
+        attrs.packageName = AssistantProtocol.PACKAGE;
+        attrs.token = null;
+        attrs.setTitle(TITLE);
+        attrs.flags &= ~WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
     }
 
     void attributesChanged(WindowManager.LayoutParams attrs) throws ReflectiveOperationException {
